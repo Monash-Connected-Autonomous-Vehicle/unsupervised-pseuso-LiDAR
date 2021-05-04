@@ -1,11 +1,15 @@
 # Adapted from SfmLearner
-# https://github.com/ClementPinard/SfmLearner-Pytorch/blob/master/models/PoseExpNet.py
+# https://github.com/ClementPinard/SfmLearner-Pytorch/blob/master/models/DispNetS.py
 
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.init import xavier_uniform_, zeros_
+import sys
+
+# make module visible to parent
+sys.path.append('../')
 
 
 def downsample_conv(in_planes, out_planes, kernel_size=3):
