@@ -17,13 +17,13 @@ model:
         name: 'PoseNet'
         version: '1'
 datasets:
-    path: '../../KITTI/2011_09_26/'
+    path: '../../KITTI/'
     augmentation:
         image_width: 1242
         image_height: 375
-    train:
-        batch_size: 4
-        dataset: ['KITTI']
-        path: [None]
-        split: [None]
-        depth_type: ['velodyne']
+    sequence_length: 3
+    batch_size: 4
+    dataset: ['KITTI']
+    split: [None]
+    depth_type: ['velodyne']
+train: True
