@@ -8,7 +8,11 @@ from collections import deque
 import numpy as np
 from torch.utils.data import Dataset
 from torchvision import transforms, utils
+import matplotlib.pyplot as plt
+
 from PIL import Image
+import matplotlib.image as mpimg
+import cv2 
 
 from transform import Transform
 from calibration import Calibration
@@ -68,9 +72,9 @@ class UnSupKittiDataset(Dataset):
         return sorted(img_dirs)
     
     def load_img(self, path):
-        img = Image.open(path)
+        img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
         img = self.transforms(img)
-        return img.astype(np.float32)
+        return img
 
     def _init_samples(self):
         '''
@@ -93,7 +97,7 @@ class UnSupKittiDataset(Dataset):
             tgt_dir      = window.pop(mid)
             ref_img_dirs = window
 
-            sample['tgt']     = tgt_dir
+            sample['tgt']      = tgt_dir
             sample['ref_imgs'] = ref_img_dirs
 
             calib_dir = tgt_dir[:23]
@@ -121,20 +125,4 @@ class UnSupKittiDataset(Dataset):
         sample['ref_imgs'] = imgs
 
         return sample
-
-
-with open('../configs/basic_config.yaml') as file:
-    config = yaml.full_load(file)
-
-transforms = transforms.ToTensor()
-
-
-kitti = UnSupKittiDataset(config, transforms)
-print(kitti.__len__())
-
-
-
-
-
-
-
+        
