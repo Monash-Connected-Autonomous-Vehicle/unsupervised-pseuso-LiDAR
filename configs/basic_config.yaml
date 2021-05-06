@@ -10,11 +10,13 @@ model:
         name: 'StepLR'
         step_size: 30
         gamma: 0.5
-    depth_net:
+    depth:
         name: 'DispNetS'
+        file: 'disp_net'
         version: '1'
-    pose_net:
+    pose:
         name: 'PoseNet'
+        file: 'pose_net'
         version: '1'
 datasets:
     path: '../../KITTI/'

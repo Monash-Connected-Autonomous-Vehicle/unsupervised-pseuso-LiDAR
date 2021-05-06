@@ -10,9 +10,6 @@ import numpy as np
 import os
 import math
 
-import cv2
-from PIL import Image
-
 class Calibration():
     """ Calibration matrices and utils
         3d XYZ in <label>.txt are in rect camera coord.

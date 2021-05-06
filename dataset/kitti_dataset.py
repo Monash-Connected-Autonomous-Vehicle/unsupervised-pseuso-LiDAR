@@ -11,15 +11,15 @@ from torchvision import transforms, utils
 import matplotlib.pyplot as plt
 
 from PIL import Image
-import matplotlib.image as mpimg
-import cv2 
 
-from transform import Transform
-from calibration import Calibration
+from .transform import Transform
+from .calibration import Calibration
 
 def sliding_window(iterable, size):
     '''
-        returns a generator object 
+        returns a iterable generator object 
+        that is a sliding windowed list of length 
+        `size`.
     '''
     iterable = iter(iterable)
     window = deque(islice(iterable, size), maxlen=size)
@@ -86,7 +86,7 @@ class UnSupKittiDataset(Dataset):
                 'extrinsics': transformation matrix
                 }
         '''
-
+        
         img_dirs   = self.get_img_dirs(self.kitti_filepath)
         mid        = self.seq_len//2
 
@@ -125,4 +125,3 @@ class UnSupKittiDataset(Dataset):
         sample['ref_imgs'] = imgs
 
         return sample
-        
