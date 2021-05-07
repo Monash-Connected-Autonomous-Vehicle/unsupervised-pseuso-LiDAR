@@ -54,8 +54,7 @@ class UnSupKittiDataset(Dataset):
         self.img_width       = config['datasets']['augmentation']['image_width']
         self.img_height      = config['datasets']['augmentation']['image_height']
         self.seq_len         = config['datasets']['sequence_length']
-        self.train           = config['train']
-        
+
         self.transforms = transforms
         self.samples = self._init_samples()
 
@@ -100,7 +99,7 @@ class UnSupKittiDataset(Dataset):
             sample['tgt']      = tgt_dir
             sample['ref_imgs'] = ref_img_dirs
 
-            calib_dir = tgt_dir[:23]
+            calib_dir = tgt_dir[:20] # if no data is being loaded, check the file stuct
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
             sample['extrinsics'] = calib.Tx

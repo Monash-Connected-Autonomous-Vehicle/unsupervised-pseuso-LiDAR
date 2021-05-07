@@ -1,15 +1,5 @@
 model:
     name: 'generic_sfm'
-    optimizer:
-        name: 'Adam'
-        depth:
-            lr: 0.0002
-        pose:
-            lr: 0.0002
-    scheduler:
-        name: 'StepLR'
-        step_size: 30
-        gamma: 0.5
     depth:
         name: 'DispNetS'
         file: 'disp_net'
@@ -19,13 +9,26 @@ model:
         file: 'pose_net'
         version: '1'
 datasets:
-    path: '../../KITTI/'
+    path: '../KITTI/'
     augmentation:
         image_width: 1242
         image_height: 375
+        shuffle: True
     sequence_length: 3
-    batch_size: 4
     dataset: ['KITTI']
-    split: [None]
     depth_type: ['velodyne']
-train: True
+action:
+    mode : 'train'
+    split: [0.7, 0.15, 0.15]
+    random_seed : 42
+    batch_size: 4
+    optimizer:
+        name: 'Adam'
+        depth:
+            lr: 0.0002
+        pose:
+            lr: 0.0002
+    scheduler:
+        name: 'StepLR'
+        step_size: 30
+        gamma: 0.1
