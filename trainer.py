@@ -78,7 +78,7 @@ class Trainer:
                                            sampler=test_sampler)
 
         # init optimiser and LR shcheduler
-        self.model_optimizer = optim.Adam(self.parameters_train, self.learning_rate)
+        self.model_optimizer = optim.Adam(self.parameters_train, self.opt.learning_rate)
         self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
 
         # init losses
@@ -95,7 +95,7 @@ class Trainer:
         for name, obj in getmembers(module, isclass):
             if name == model_name:
                 model = obj
-
+        
         # init model and weigths
         model = model()
         return model
