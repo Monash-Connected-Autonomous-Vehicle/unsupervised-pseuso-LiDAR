@@ -11,15 +11,15 @@ from torchvision import transforms, utils
 import matplotlib.pyplot as plt
 
 from PIL import Image
-import matplotlib.image as mpimg
-import cv2 
 
-from transform import Transform
-from calibration import Calibration
+from .transform import Transform
+from .calibration import Calibration
 
 def sliding_window(iterable, size):
     '''
-        returns a generator object 
+        returns a iterable generator object 
+        that is a sliding windowed list of length 
+        `size`.
     '''
     iterable = iter(iterable)
     window = deque(islice(iterable, size), maxlen=size)
@@ -49,13 +49,12 @@ class UnSupKittiDataset(Dataset):
     def __init__(self, config, transforms=None):
 
         super(UnSupKittiDataset, self).__init__()
-
+        self.count = 0
         self.kitti_filepath  = config['datasets']['path']
         self.img_width       = config['datasets']['augmentation']['image_width']
         self.img_height      = config['datasets']['augmentation']['image_height']
         self.seq_len         = config['datasets']['sequence_length']
-        self.train           = config['train']
-        
+
         self.transforms = transforms
         self.samples = self._init_samples()
 
@@ -73,7 +72,10 @@ class UnSupKittiDataset(Dataset):
     
     def load_img(self, path):
         img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
-        img = self.transforms(img)
+
+        if transforms:
+            img = self.transforms(img)
+
         return img
 
     def _init_samples(self):
@@ -86,7 +88,7 @@ class UnSupKittiDataset(Dataset):
                 'extrinsics': transformation matrix
                 }
         '''
-
+        
         img_dirs   = self.get_img_dirs(self.kitti_filepath)
         mid        = self.seq_len//2
 
@@ -100,7 +102,7 @@ class UnSupKittiDataset(Dataset):
             sample['tgt']      = tgt_dir
             sample['ref_imgs'] = ref_img_dirs
 
-            calib_dir = tgt_dir[:23]
+            calib_dir = tgt_dir[:20] # if no data is being loaded, check the file stuct
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
             sample['extrinsics'] = calib.Tx
@@ -113,16 +115,25 @@ class UnSupKittiDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx):
+        
+        # only contains dir links to save cpu memory
         sample = self.samples[idx]
 
+        # init return sample
+        # can't change sample as we load
+        # image each epoch
+        ret_sample = {}
+
         # prep target
-        sample['tgt'] = self.load_img(sample['tgt'])
+        ret_sample['tgt'] = self.load_img(sample['tgt'])
 
         # prep sources
         imgs = []
         for img in sample['ref_imgs']:
             imgs.append(self.load_img(img))
-        sample['ref_imgs'] = imgs
+        ret_sample['ref_imgs'] = imgs
 
-        return sample
-        
+        ret_sample['intrinsics'] = sample['intrinsics']
+        ret_sample['extrinsics'] = sample['extrinsics']
+
+        return ret_sample
