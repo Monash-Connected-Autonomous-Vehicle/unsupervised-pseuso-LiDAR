@@ -19,9 +19,11 @@ datasets:
     depth_type: ['velodyne']
 action:
     mode : 'train'
+    from_scratch : True
     split: [0.7, 0.15, 0.15]
     random_seed : 42
     batch_size: 4
+    num_epochs: 10
     optimizer:
         name: 'Adam'
         depth:
