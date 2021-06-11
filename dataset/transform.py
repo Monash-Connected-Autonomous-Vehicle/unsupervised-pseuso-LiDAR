@@ -5,12 +5,11 @@ import matplotlib.pyplot as plt
 import cv2
 from PIL import Image
 
-from .calibration import Calibration
+class Transform():
 
-class Transform(Calibration):
-
-    def __init__(self, kitti_filepath, img_width, img_height):
-        super(Transform, self).__init__(kitti_filepath)
+    def __init__(self, P, Tx, img_width, img_height):
+        self.P      = P
+        self.Tx     = Tx
         self.width  = img_width
         self.height = img_height
 
@@ -50,7 +49,7 @@ class Transform(Calibration):
             pnt = np.vstack((pnt, [1]))
 
             # velo-to-cam
-            xyz_pnt = np.matmul(self.T, pnt)
+            xyz_pnt = np.matmul(self.Tx, pnt)
 
             # cam-to-img
             uv_pnt  = np.matmul(self.P, xyz_pnt)

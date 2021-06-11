@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 
 from PIL import Image
 
-from .transform import Transform
 from .calibration import Calibration
 
 def sliding_window(iterable, size):

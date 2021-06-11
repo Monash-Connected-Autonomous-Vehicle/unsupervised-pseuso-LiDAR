@@ -82,6 +82,8 @@ class Trainer:
         self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
 
         # init losses
+        # https://github.com/TRI-ML/packnet-sfm/blob/master/packnet_sfm/losses/generic_multiview_photometric_loss.py
+        # self.criterion = 
     
     def load_from_config(self, config, model_type='depth'):
         '''
@@ -141,10 +143,11 @@ class Trainer:
 
         # process batch
         for batch_indx, samples in enumerate(self.train_loader):
-            self.process_batch(samples)
 
             self.model_optimizer.zero_grad()
-            # losses["loss"].backward()
+
+            outputs, loss = self.process_batch(samples)
+            loss.backward()
             self.model_optimizer.step()
             break
         
@@ -153,7 +156,19 @@ class Trainer:
         # validate after each epoch?
 
     def process_batch(self, samples):
-        pass
+        tgt        = samples['tgt'].to(self.device)
+        ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']]
+        intrinsics = samples['intrinsics'].to(self.device)
+        extrinsics = samples['extrinsics'].to(self.device)
+
+        disp = self.depth_model(tgt)
+        poses = self.pose_model(tgt, ref_imgs)
+    
+        # forward + backward + optimize
+        loss = self.criterion(disp, poses)
+
+        return [disp, poses], loss
+
 
 with open('configs/basic_config.yaml') as file:
     config = yaml.full_load(file)

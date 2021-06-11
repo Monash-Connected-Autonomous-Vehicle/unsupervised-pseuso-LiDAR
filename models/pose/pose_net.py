@@ -48,8 +48,6 @@ class PoseNet(nn.Module):
         self.pose_pred = nn.Conv2d(conv_channels[6], 6 * self.nb_ref_imgs,
                                    kernel_size=1, padding=0)
 
-        self.init_weights()
-
     def init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
