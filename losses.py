@@ -2,8 +2,8 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dataset.transform import Transform
-from dataset.pose_geometry import pose_vec2mat
+from utils.transform import Transform
+from utils.pose_geometry import pose_vec2mat
 
 # TODO:
 #  1. Find losses to be made
@@ -17,7 +17,7 @@ class Losses:
     def __init__(self, config):
         self.loss_use = config['action']['loss']
     
-    def SSIM(x, y, C1=1e-4, C2=9e-4, kernel_size=3, stride=1):
+    def SSIM(self, x, y, C1=1e-4, C2=9e-4, kernel_size=3, stride=1):
         """
         Structural SIMilarity (SSIM) distance between two images.
         Parameters
@@ -56,29 +56,62 @@ class Losses:
 
         return ssim
 
-    def multiview_appearence_matching(tgt_img, ref_imgs, disp, poses, P, Tx, mode='bilinear'):
+    def disp_to_depth(self, disp, min_depth=0, max_depth=120):
+        """Convert network's sigmoid output into depth prediction
+        The formula for this conversion is given in the 'additional considerations'
+        section of the paper.
+        """
+        min_disp = 1 / max_depth
+        max_disp = 1 / min_depth
+        scaled_disp = min_disp + (max_disp - min_disp) * disp
+        depth = 1 / scaled_disp
+        return scaled_disp, depth
+
+    def compute_reprojection_loss(self, pred, target):
+        """Computes reprojection loss between a batch of predicted and target images
+        """
+        abs_diff = torch.abs(target - pred)
+        l1_loss = abs_diff.mean(1, True)
+
+        if self.opt.no_ssim:
+            reprojection_loss = l1_loss
+        else:
+            ssim_loss = self.ssim(pred, target).mean(1, True)
+            reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
+
+        return reprojection_loss
+
+    def multiview_appearence_matching(self, tgt_img, ref_imgs, disp, poses, P, mode='bilinear'):
         '''
         This is the multiview photometric loss that
         uses SSIM appearance matching as atated in
         PackNet SfM : https://arxiv.org/pdf/1905.02693.pdf
         '''
 
-        #  This is WRING NEED TODO AGAIN
-        
-        warper      = Transform(P, Tx, tgt_img.shape[0], tgt_img.shape[1])
+        warper = Transform(P, None, tgt_img.shape[0], tgt_img.shape[1])
 
         # convert poses to mat (euler form)
         pose_mtxs = [pose_vec2mat(pose) for pose in poses]
 
         # project dept to 3D
-        depth  = 1/disp
-        img_to_velo = warper.project_img_to_velo(depth)
+        depth  = self.disp_to_depth(disp)
+        img_to_cam = warper.project_img_to_cam(depth)
 
         # transform to target image and sample
+        projected_imgs = []
+        valid_pnts     = []
         for ind in range(len(poses)):
-            trans_velo = pose_mtxs[ind] @ ref_imgs[ind]
-            trans_img  = project_velo_to_img(trans_velo)
+            proj_cam_to_src_pixel = P @ pose_mtxs[ind]  # [B, 3, 4]
+            rot, tr = proj_cam_to_src_pixel[..., :3], proj_cam_to_src_pixel[..., -1:]
+            src_pixel_coords = project_cam_to_img(img_to_cam, rot, tr)
+            projected_img = F.grid_sample(tgt_img, src_pixel_coords, padding_mode='zeros', align_corners=True)
+            valid_p = src_pixel_coords.abs().max(dim=-1)[0] <= 1
 
+            projected_imgs.append(projected_img)
+            valid_pnts.append(valid_p)
+        
+        # this should be inverse warp
+        return projected_imgs, valid_pnts
         
     def smooth_loss(pred_map):
         def gradient(pred):

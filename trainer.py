@@ -17,7 +17,7 @@ import numpy as np
 
 from   PIL import Image
 
-from dataset.kitti_dataset import UnSupKittiDataset
+from utils.kitti_dataset import UnSupKittiDataset
 
 class Trainer:
     def __init__(self, config):
