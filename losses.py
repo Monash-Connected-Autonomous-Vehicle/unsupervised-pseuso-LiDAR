@@ -2,8 +2,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.transform import Transform
-from utils.pose_geometry import pose_vec2mat
+from utils.pose_geometry import inverse_warp
 
 # TODO:
 #  1. Find losses to be made
@@ -14,9 +13,7 @@ from utils.pose_geometry import pose_vec2mat
 
 
 class Losses:
-    def __init__(self, config):
-        self.loss_use = config['action']['loss']
-    
+
     def SSIM(self, x, y, C1=1e-4, C2=9e-4, kernel_size=3, stride=1):
         """
         Structural SIMilarity (SSIM) distance between two images.
@@ -56,62 +53,57 @@ class Losses:
 
         return ssim
 
-    def disp_to_depth(self, disp, min_depth=0, max_depth=120):
+    def disp_to_depth(self, disp, min_depth=0.1, max_depth=120.0):
         """Convert network's sigmoid output into depth prediction
         The formula for this conversion is given in the 'additional considerations'
         section of the paper.
         """
         min_disp = 1 / max_depth
         max_disp = 1 / min_depth
+
         scaled_disp = min_disp + (max_disp - min_disp) * disp
         depth = 1 / scaled_disp
-        return scaled_disp, depth
+        return depth
 
-    def compute_reprojection_loss(self, pred, target):
+    def compute_reprojection_loss(self, pred, target, no_ssim=False):
         """Computes reprojection loss between a batch of predicted and target images
         """
         abs_diff = torch.abs(target - pred)
         l1_loss = abs_diff.mean(1, True)
 
-        if self.opt.no_ssim:
+        if no_ssim:
             reprojection_loss = l1_loss
         else:
-            ssim_loss = self.ssim(pred, target).mean(1, True)
+            ssim_loss = self.SSIM(pred, target).mean(1, True)
             reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
 
         return reprojection_loss
 
-    def multiview_appearence_matching(self, tgt_img, ref_imgs, disp, poses, P, mode='bilinear'):
+    def multiview_appearence_matching(self, tgt_img, ref_imgs, disparity, poses, intrinsics, mode='bilinear'):
         '''
         This is the multiview photometric loss that
         uses SSIM appearance matching as atated in
-        PackNet SfM : https://arxiv.org/pdf/1905.02693.pdf
         '''
-
-        warper = Transform(P, None, tgt_img.shape[0], tgt_img.shape[1])
-
-        # convert poses to mat (euler form)
-        pose_mtxs = [pose_vec2mat(pose) for pose in poses]
-
         # project dept to 3D
-        depth  = self.disp_to_depth(disp)
-        img_to_cam = warper.project_img_to_cam(depth)
+        # depth content size are as follows
+        # torch.Size([4, 1, 375, 1242])
+        # torch.Size([4, 1, 188, 621])
+        # torch.Size([4, 1, 94, 311])
+        # torch.Size([4, 1, 47, 156])
+        depth  = self.disp_to_depth(disparity[0])
 
-        # transform to target image and sample
-        projected_imgs = []
-        valid_pnts     = []
-        for ind in range(len(poses)):
-            proj_cam_to_src_pixel = P @ pose_mtxs[ind]  # [B, 3, 4]
-            rot, tr = proj_cam_to_src_pixel[..., :3], proj_cam_to_src_pixel[..., -1:]
-            src_pixel_coords = project_cam_to_img(img_to_cam, rot, tr)
-            projected_img = F.grid_sample(tgt_img, src_pixel_coords, padding_mode='zeros', align_corners=True)
-            valid_p = src_pixel_coords.abs().max(dim=-1)[0] <= 1
+        # split poses
+        poses_t_0 = poses[:, 0, :]
+        poses_t_2 = poses[:, 1, :]
+        intrinsics = intrinsics[:, :3, :3]
 
-            projected_imgs.append(projected_img)
-            valid_pnts.append(valid_p)
+        # do an inverse warp
+        projected_img_t_0, valid_points_t_0 = inverse_warp(ref_imgs[0], depth, poses_t_0, intrinsics)
+        projected_img_t_2, valid_points_t_2 = inverse_warp(ref_imgs[1], depth, poses_t_2, intrinsics)
+
+
+
         
-        # this should be inverse warp
-        return projected_imgs, valid_pnts
         
     def smooth_loss(pred_map):
         def gradient(pred):

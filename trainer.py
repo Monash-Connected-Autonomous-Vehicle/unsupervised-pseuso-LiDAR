@@ -18,6 +18,8 @@ import numpy as np
 from   PIL import Image
 
 from utils.kitti_dataset import UnSupKittiDataset
+from losses import Losses
+
 
 class Trainer:
     def __init__(self, config):
@@ -43,7 +45,7 @@ class Trainer:
         self.parameters_train += list(self.pose_model.parameters())
 
         # init train transforms
-        # TODO: Add composit transforms
+        # TODO: Add composite transforms
         transform = transforms.ToTensor()
         
         # init dataset
@@ -82,8 +84,7 @@ class Trainer:
         self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
 
         # init losses
-        # https://github.com/TRI-ML/packnet-sfm/blob/master/packnet_sfm/losses/generic_multiview_photometric_loss.py
-        # self.criterion = 
+        self.criterion = Losses()
     
     def load_from_config(self, config, model_type='depth'):
         '''
@@ -103,16 +104,7 @@ class Trainer:
         
         # init model and weigths
         model = model()
-
-        # TODO:if checkpoint exists, load weights
-        # if not config >> from scratch
-        # checkpoint_path = '.models/pretrained/'
-        # if os.path.exists(checkpoint_path + 'TODO'):
-        #     # load model
-        #     pass
-        # else:
         model.init_weights()
-
         return model
 
     def set_train(self):
@@ -156,16 +148,16 @@ class Trainer:
         # validate after each epoch?
 
     def process_batch(self, samples):
-        tgt        = samples['tgt'].to(self.device)
-        ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']]
+        tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
+        ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
         intrinsics = samples['intrinsics'].to(self.device)
         extrinsics = samples['extrinsics'].to(self.device)
 
-        disp = self.depth_model(tgt)
-        poses = self.pose_model(tgt, ref_imgs)
-    
+        disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
+        poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
+
         # forward + backward + optimize
-        loss = self.criterion(disp, poses)
+        loss = self.criterion.multiview_appearence_matching(tgt, ref_imgs, disp, poses, intrinsics)
 
         return [disp, poses], loss
 
