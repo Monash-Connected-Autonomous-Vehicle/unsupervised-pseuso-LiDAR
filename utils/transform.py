@@ -1,20 +1,33 @@
 #!/usr/bin/env python
 
+import torch
+import torch.nn.functional as F
+
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from PIL import Image
 
-from .calibration import Calibration
+pixel_coords = None
 
-class Transform(Calibration):
+class Transform():
 
-    def __init__(self, kitti_filepath, img_width, img_height):
-        super(Transform, self).__init__(kitti_filepath)
+    def __init__(self, P, Tx, img_width, img_height):
+        self.P      = P
+        self.Tx     = Tx
         self.width  = img_width
         self.height = img_height
 
-    def inverse_rigid_trans(self, Tr):
+    def set_id_grid(self, depth):
+        global pixel_coords
+        b, h, w = depth.size()
+        i_range = torch.arange(0, h).view(1, h, 1).expand(1, h, w).type_as(depth)  # [1, H, W]
+        j_range = torch.arange(0, w).view(1, 1, w).expand(1, h, w).type_as(depth)  # [1, H, W]
+        ones = torch.ones(1, h, w).type_as(depth)
+
+        pixel_coords = torch.stack((j_range, i_range, ones), dim=1)  # [1, 3, H, W]
+
+    def inverse_rigid_trans_np(self, Tr):
         ''' Inverse a rigid body transform matrix (3x4 as [R|t])
             [R'|-R't; 0|1]
         '''
@@ -23,10 +36,51 @@ class Transform(Calibration):
         inv_Tr[0:3, 3] = np.dot(-np.transpose(Tr[0:3, 0:3]), Tr[0:3, 3])
         return inv_Tr
 
-    def project_velo_to_img(self, point_cloud):
+    def project_cam_to_img(self, cam_coords, proj_c2p_rot, proj_c2p_tr):
+        b, _, h, w = cam_coords.size()
+        cam_coords_flat = cam_coords.reshape(b, 3, -1)  # [B, 3, H*W]
+        if proj_c2p_rot is not None:
+            pcoords = proj_c2p_rot @ cam_coords_flat
+        else:
+            pcoords = cam_coords_flat
+
+        if proj_c2p_tr is not None:
+            pcoords = pcoords + proj_c2p_tr  # [B, 3, H*W]
+
+        X = pcoords[:, 0]
+        Y = pcoords[:, 1]
+        Z = pcoords[:, 2].clamp(min=1e-3)
+
+        X_norm = 2*(X / Z)/(w-1) - 1  # Normalized, -1 if on extreme left, 1 if on extreme right (x = w-1) [B, H*W]
+        Y_norm = 2*(Y / Z)/(h-1) - 1  # Idem [B, H*W]
+
+        pixel_coords = torch.stack([X_norm, Y_norm], dim=2)  # [B, H*W, 2]
+        return pixel_coords.reshape(b, h, w, 2)
+    
+    def project_img_to_cam(self, depth, intrinsics_inv):
+        global pixel_coords
+        """Transform coordinates in the pixel frame to the camera frame.
+        Args:
+            depth: depth maps -- [B, H, W]
+            intrinsics_inv: intrinsics_inv matrix for each element of batch -- [B, 3, 3]
+        Returns:
+            array of (u,v,1) cam coordinates -- [B, 3, H, W]
+        """
+        b, h, w = depth.size()
+        if (pixel_coords is None) or pixel_coords.size(2) < h:
+            self.set_id_grid(depth)
+        current_pixel_coords = pixel_coords[..., :h, :w].expand(b, 3, h, w).reshape(b, 3, -1)  # [B, 3, H*W]
+        current_pixel_coords = current_pixel_coords.type(torch.DoubleTensor)
+
+        cam_coords = (intrinsics_inv @ current_pixel_coords).reshape(b, 3, h, w)
+        return cam_coords * depth.unsqueeze(1)
+       
+    def project_velo_to_img_np(self, point_cloud):
         ''' projects point cloud to image
         '''
         
+        assert Tx == None, 'Velodyne transformation matrix cannot be None'
+
         # scan velodyne points and remove reflectance 
         point_cloud = point_cloud[:, :3]
 
@@ -50,7 +104,7 @@ class Transform(Calibration):
             pnt = np.vstack((pnt, [1]))
 
             # velo-to-cam
-            xyz_pnt = np.matmul(self.T, pnt)
+            xyz_pnt = np.matmul(self.Tx, pnt)
 
             # cam-to-img
             uv_pnt  = np.matmul(self.P, xyz_pnt)
@@ -65,9 +119,8 @@ class Transform(Calibration):
         depth_img = np.transpose(depth_array)
 
         return depth_img
-    
-    def project_img_to_velo(self, depth_img):
-        
+
+    def project_img_to_cam_np(self, depth_img):
         rows, cols = depth_img.shape
         c, r = np.meshgrid(np.arange(cols), np.arange(rows))
         points = np.stack([c, r, depth_img])
@@ -90,6 +143,14 @@ class Transform(Calibration):
         pts_3d_cam[:, 0] = x
         pts_3d_cam[:, 1] = y
         pts_3d_cam[:, 2] = uv_depth[:, 2]
+
+        return pts_3d_cam
+
+    def project_img_to_velo_np(self, depth_img):
+
+        assert Tx == None, 'Velodyne transformation matrix cannot be None'
+        
+        points_3d_cam = self.project_img_to_cam_np(depth_img)
 
         T_inv =self.inverse_rigid_trans(self.Tx)
 

@@ -17,7 +17,9 @@ import numpy as np
 
 from   PIL import Image
 
-from dataset.kitti_dataset import UnSupKittiDataset
+from utils.kitti_dataset import UnSupKittiDataset
+from losses import Losses
+
 
 class Trainer:
     def __init__(self, config):
@@ -43,7 +45,7 @@ class Trainer:
         self.parameters_train += list(self.pose_model.parameters())
 
         # init train transforms
-        # TODO: Add composit transforms
+        # TODO: Add composite transforms
         transform = transforms.ToTensor()
         
         # init dataset
@@ -82,6 +84,7 @@ class Trainer:
         self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
 
         # init losses
+        self.criterion = Losses()
     
     def load_from_config(self, config, model_type='depth'):
         '''
@@ -101,16 +104,7 @@ class Trainer:
         
         # init model and weigths
         model = model()
-
-        # TODO:if checkpoint exists, load weights
-        # if not config >> from scratch
-        # checkpoint_path = '.models/pretrained/'
-        # if os.path.exists(checkpoint_path + 'TODO'):
-        #     # load model
-        #     pass
-        # else:
         model.init_weights()
-
         return model
 
     def set_train(self):
@@ -141,10 +135,11 @@ class Trainer:
 
         # process batch
         for batch_indx, samples in enumerate(self.train_loader):
-            self.process_batch(samples)
 
             self.model_optimizer.zero_grad()
-            # losses["loss"].backward()
+
+            outputs, loss = self.process_batch(samples)
+            loss.backward()
             self.model_optimizer.step()
             break
         
@@ -153,7 +148,19 @@ class Trainer:
         # validate after each epoch?
 
     def process_batch(self, samples):
-        pass
+        tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
+        ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
+        intrinsics = samples['intrinsics'].to(self.device)
+        extrinsics = samples['extrinsics'].to(self.device)
+
+        disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
+        poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
+
+        # forward + backward + optimize
+        loss = self.criterion.multiview_appearence_matching(tgt, ref_imgs, disp, poses, intrinsics)
+
+        return [disp, poses], loss
+
 
 with open('configs/basic_config.yaml') as file:
     config = yaml.full_load(file)

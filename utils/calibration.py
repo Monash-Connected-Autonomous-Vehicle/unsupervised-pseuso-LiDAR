@@ -45,21 +45,13 @@ class Calibration():
         # Projection matrix from rect camera coord to image2 coord
         self.P = calib_cam_to_cam["P_rect_02"].reshape(3, 4)
 
-        # Rotation and Translation matrix
+        # Rotation and Translation matrix (velodyne)
         self.R = calib_velo_to_cam["R"].reshape(3, 3)
         self.T = calib_velo_to_cam["T"].reshape(3, 1)
 
         # Rigid transform from Velodyne coord to reference camera coord
         self.Tx = np.concatenate((self.R, self.T), axis = 1)
         self.Tx = np.vstack([self.Tx, [0, 0, 0, 1]])
-
-        # Camera intrinsics and extrinsics
-        self.c_u = self.P[0, 2]
-        self.c_v = self.P[1, 2]
-        self.f_u = self.P[0, 0]
-        self.f_v = self.P[1, 1]
-        self.b_x = self.P[0, 3] / (-self.f_u)  # relative
-        self.b_y = self.P[1, 3] / (-self.f_v)
 
     def read_calib_file(self, filepath):
         """ Read in a calibration file and parse into a dictionary.
