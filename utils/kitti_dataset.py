@@ -14,20 +14,6 @@ from PIL import Image
 
 from .calibration import Calibration
 
-def sliding_window(iterable, size):
-    '''
-        returns a iterable generator object 
-        that is a sliding windowed list of length 
-        `size`.
-    '''
-    iterable = iter(iterable)
-    window = deque(islice(iterable, size), maxlen=size)
-    for item in iterable:
-        yield list(window)
-        window.append(item)
-    if window:  
-        yield list(window)
-
 class UnSupKittiDataset(Dataset):
 
     '''
@@ -55,7 +41,23 @@ class UnSupKittiDataset(Dataset):
         self.seq_len         = config['datasets']['sequence_length']
 
         self.transforms = transforms
-        self.samples = self._init_samples()
+        self.samples = []
+
+        self._init_samples()
+
+    def sliding_window(self, iterable, size):
+        '''
+            returns a iterable generator object 
+            that is a sliding windowed list of length 
+            `size`.
+        '''
+        iterable = iter(iterable)
+        window = deque(islice(iterable, size), maxlen=size)
+        for item in iterable:
+            yield list(window)
+            window.append(item)
+        if window:  
+            yield list(window)
 
     def get_img_dirs(self, path):
         drive_dates = glob.glob(path + '*')
@@ -90,25 +92,23 @@ class UnSupKittiDataset(Dataset):
         
         img_dirs   = self.get_img_dirs(self.kitti_filepath)
         mid        = self.seq_len//2
-
-        sample   = {}
-        samples  = []
         ref_imgs = []
-        for window in sliding_window(img_dirs, self.seq_len):
+
+        for window in self.sliding_window(img_dirs, self.seq_len):
+            sample   = {} # must be defined for each new iteration
+
             tgt_dir      = window.pop(mid)
             ref_img_dirs = window
-
+            
             sample['tgt']      = tgt_dir
             sample['ref_imgs'] = ref_img_dirs
-
+            
             calib_dir = tgt_dir[:20] # if no data is being loaded, check the file stuct
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
             sample['extrinsics'] = calib.Tx
 
-            samples.append(sample)
-
-        return samples
+            self.samples.append(sample)
         
     def __len__(self):
         return len(self.samples)
@@ -117,6 +117,7 @@ class UnSupKittiDataset(Dataset):
         
         # only contains dir links to save cpu memory
         sample = self.samples[idx]
+        # print(sample)
 
         # init return sample
         # can't change sample as we load
@@ -136,3 +137,9 @@ class UnSupKittiDataset(Dataset):
         ret_sample['extrinsics'] = sample['extrinsics']
 
         return ret_sample
+
+    def get_mul_items(self, indx_list):
+        items = []
+        for x in indx_list:
+            items.append(self.__getitem__(x))
+        return items
