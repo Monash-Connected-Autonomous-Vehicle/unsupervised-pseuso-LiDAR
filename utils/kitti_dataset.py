@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 from .calibration import Calibration
+from .oxts_parser import *
 
 class UnSupKittiDataset(Dataset):
 
@@ -59,17 +60,20 @@ class UnSupKittiDataset(Dataset):
         if window:  
             yield list(window)
 
-    def get_img_dirs(self, path):
+    def get_dirs(self, path):
         drive_dates = glob.glob(path + '*')
         img_dirs    = []
+        oxts_dirs   = []
 
         for date in drive_dates:
             drives = glob.glob(date + '/*_sync')
             for drive in drives:
                 images = glob.glob(drive + '/image_02/data/*.png')
+                oxts_pckts = glob.glob(drive + '/oxts/data/*.txt') 
                 img_dirs.extend(images)
+                oxts_dirs.extend(oxts_pckts)
 
-        return sorted(img_dirs)
+        return sorted(img_dirs), sorted(oxts_dirs)
     
     def load_img(self, path):
         img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
@@ -90,15 +94,16 @@ class UnSupKittiDataset(Dataset):
                 }
         '''
         
-        img_dirs   = self.get_img_dirs(self.kitti_filepath)
+        img_dirs, oxts_dirs   = self.get_dirs(self.kitti_filepath)
         mid        = self.seq_len//2
         ref_imgs = []
 
         for window in self.sliding_window(img_dirs, self.seq_len):
             sample   = {} # must be defined for each new iteration
-
+            
             tgt_dir      = window.pop(mid)
             ref_img_dirs = window
+
             
             sample['tgt']      = tgt_dir
             sample['ref_imgs'] = ref_img_dirs
@@ -107,6 +112,11 @@ class UnSupKittiDataset(Dataset):
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
             sample['extrinsics'] = calib.Tx
+
+            oxts_lst = [oxts_dirs[img_dirs.index(tgt_dir)],  
+                       oxts_dirs[img_dirs.index(ref_img_dirs[0])],
+                       oxts_dirs[img_dirs.index(ref_img_dirs[1])]]
+            sample['oxts'] = load_oxts_packets_and_poses(oxts_lst)
 
             self.samples.append(sample)
         
@@ -117,7 +127,6 @@ class UnSupKittiDataset(Dataset):
         
         # only contains dir links to save cpu memory
         sample = self.samples[idx]
-        # print(sample)
 
         # init return sample
         # can't change sample as we load
@@ -135,6 +144,7 @@ class UnSupKittiDataset(Dataset):
 
         ret_sample['intrinsics'] = sample['intrinsics']
         ret_sample['extrinsics'] = sample['extrinsics']
+        ret_sample['oxts']       = sample['oxts']
 
         return ret_sample
 

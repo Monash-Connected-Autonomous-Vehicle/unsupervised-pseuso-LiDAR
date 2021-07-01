@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -69,12 +70,13 @@ class Losses:
         """Computes reprojection loss between a batch of predicted and target images
         """
         abs_diff = torch.abs(target - pred)
-        l1_loss = abs_diff.mean(1, True)
+        l1_loss = torch.mean(abs_diff)
+
 
         if no_ssim:
             reprojection_loss = l1_loss
         else:
-            ssim_loss = self.SSIM(pred, target).mean(1, True)
+            ssim_loss = torch.mean(self.SSIM(pred, target))
             reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
 
         return reprojection_loss
@@ -101,10 +103,11 @@ class Losses:
         projected_img_t_0, valid_points_t_0 = inverse_warp(ref_imgs[0], depth, poses_t_0, intrinsics)
         projected_img_t_2, valid_points_t_2 = inverse_warp(ref_imgs[1], depth, poses_t_2, intrinsics)
 
+        diff_1  = self.compute_reprojection_loss(projected_img_t_0, tgt_img)
+        diff_2  = self.compute_reprojection_loss(projected_img_t_2, tgt_img)
 
+        return diff
 
-        
-        
     def smooth_loss(pred_map):
         def gradient(pred):
             D_dy = pred[:, :, 1:] - pred[:, :, :-1]
