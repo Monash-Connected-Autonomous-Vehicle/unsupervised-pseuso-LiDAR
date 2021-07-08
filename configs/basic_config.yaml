@@ -34,4 +34,3 @@ action:
         name: 'StepLR'
         step_size: 30
         gamma: 0.1
-    loss: ['multiview_appearence_matching']

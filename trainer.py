@@ -157,9 +157,8 @@ class Trainer:
         poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
 
         # forward + backward + optimize
-        loss = self.criterion.multiview_appearence_matching(tgt, ref_imgs, disp, poses, intrinsics)
+        loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics)
 
-        print(loss)
         return [disp, poses], loss
 
 
@@ -167,4 +166,4 @@ with open('configs/basic_config.yaml') as file:
     config = yaml.full_load(file)
 
 trainer = Trainer(config)
-# trainer.train()
+trainer.train()
