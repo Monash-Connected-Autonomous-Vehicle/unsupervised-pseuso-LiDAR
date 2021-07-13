@@ -46,7 +46,7 @@ def pose_vec2mat(vec, mode='euler'):
     else:
         raise ValueError('Rotation mode not supported {}'.format(mode))
     mat = torch.cat([rot_mat, trans], dim=2)  # [B,3,4]
-    return mat
+    return mat.type(torch.DoubleTensor)
 
 def invert_pose(T):
     """Inverts a [B,4,4] torch.tensor pose"""
@@ -83,7 +83,7 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
     pose_mat = pose_vec2mat(pose, rotation_mode)  # [B,3,4]
 
     # Get projection matrix for tgt camera frame to source pixel frame
-    proj_cam_to_src_pixel = intrinsics @ pose_mat.type(torch.DoubleTensor)  # [B, 3, 4]
+    proj_cam_to_src_pixel = intrinsics @ pose_mat  # [B, 3, 4]
 
     rot, tr = proj_cam_to_src_pixel[..., :3], proj_cam_to_src_pixel[..., -1:]
     src_pixel_coords = warper.project_cam_to_img(cam_coords, rot, tr)  # [B,H,W,2]

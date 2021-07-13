@@ -157,7 +157,7 @@ class Trainer:
         poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
 
         # forward + backward + optimize
-        loss = self.criterion.multiview_appearence_matching(tgt, ref_imgs, disp, poses, intrinsics)
+        loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics)
 
         return [disp, poses], loss
 

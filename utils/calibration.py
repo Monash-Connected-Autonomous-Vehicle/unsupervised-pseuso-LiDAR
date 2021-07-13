@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 
 """ Helper methods for loading and parsing KITTI data.
-
-Adapted from: 
-https://github.com/kuixu/kitti_object_vis/blob/master/kitti_util.py
 """
 
 import numpy as np

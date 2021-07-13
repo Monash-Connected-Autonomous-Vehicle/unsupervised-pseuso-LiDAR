@@ -13,21 +13,11 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 from .calibration import Calibration
+from .oxts_parser import *
 
-def sliding_window(iterable, size):
-    '''
-        returns a iterable generator object 
-        that is a sliding windowed list of length 
-        `size`.
-    '''
-    iterable = iter(iterable)
-    window = deque(islice(iterable, size), maxlen=size)
-    for item in iterable:
-        yield list(window)
-        window.append(item)
-    if window:  
-        yield list(window)
-
+# TODO: Update to contain all images from the
+# Kitti annotated depth data split. We therefore 
+# ignore all lidar transformation depth images.
 class UnSupKittiDataset(Dataset):
 
     '''
@@ -50,24 +40,44 @@ class UnSupKittiDataset(Dataset):
         super(UnSupKittiDataset, self).__init__()
         self.count = 0
         self.kitti_filepath  = config['datasets']['path']
+        self.split           = config['datasets']['split']
         self.img_width       = config['datasets']['augmentation']['image_width']
         self.img_height      = config['datasets']['augmentation']['image_height']
         self.seq_len         = config['datasets']['sequence_length']
 
         self.transforms = transforms
-        self.samples = self._init_samples()
+        self.samples = []
 
-    def get_img_dirs(self, path):
+        self._init_samples()
+
+    def sliding_window(self, iterable, size):
+        '''
+            returns a iterable generator object 
+            that is a sliding windowed list of length 
+            `size`.
+        '''
+        iterable = iter(iterable)
+        window = deque(islice(iterable, size), maxlen=size)
+        for item in iterable:
+            yield list(window)
+            window.append(item)
+        if window:  
+            yield list(window)
+
+    def get_dirs(self, path):
         drive_dates = glob.glob(path + '*')
         img_dirs    = []
+        oxts_dirs   = []
 
         for date in drive_dates:
             drives = glob.glob(date + '/*_sync')
             for drive in drives:
                 images = glob.glob(drive + '/image_02/data/*.png')
+                oxts_pckts = glob.glob(drive + '/oxts/data/*.txt') 
                 img_dirs.extend(images)
+                oxts_dirs.extend(oxts_pckts)
 
-        return sorted(img_dirs)
+        return sorted(img_dirs), sorted(oxts_dirs)
     
     def load_img(self, path):
         img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
@@ -77,7 +87,7 @@ class UnSupKittiDataset(Dataset):
 
         return img
 
-    def _init_samples(self):
+    def _init_samples(self, split):
         '''
             A sample is of the form:
             sample = {
@@ -88,27 +98,35 @@ class UnSupKittiDataset(Dataset):
                 }
         '''
         
-        img_dirs   = self.get_img_dirs(self.kitti_filepath)
-        mid        = self.seq_len//2
+        # if split == 'kitti_annotated':
+        #     self.kitti_filepath += 'data_depth_anotated'
 
-        sample   = {}
-        samples  = []
+        img_dirs, oxts_dirs   = self.get_dirs(self.kitti_filepath)
+        mid      = self.seq_len//2
         ref_imgs = []
-        for window in sliding_window(img_dirs, self.seq_len):
+
+        for window in self.sliding_window(img_dirs, self.seq_len):
+            sample   = {} # must be defined for each new iteration
+            
             tgt_dir      = window.pop(mid)
             ref_img_dirs = window
 
+            
             sample['tgt']      = tgt_dir
             sample['ref_imgs'] = ref_img_dirs
-
-            calib_dir = tgt_dir[:20] # if no data is being loaded, check the file stuct
+            
+            calib_dir = tgt_dir[:20] # if no data is being loaded, check the file stuctÔ¨Ô
+            
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
             sample['extrinsics'] = calib.Tx
 
-            samples.append(sample)
+            oxts_lst = [oxts_dirs[img_dirs.index(tgt_dir)],  
+                       oxts_dirs[img_dirs.index(ref_img_dirs[0])],
+                       oxts_dirs[img_dirs.index(ref_img_dirs[1])]]
+            sample['oxts'] = load_oxts_packets_and_poses(oxts_lst)
 
-        return samples
+            self.samples.append(sample)
         
     def __len__(self):
         return len(self.samples)
@@ -134,5 +152,12 @@ class UnSupKittiDataset(Dataset):
 
         ret_sample['intrinsics'] = sample['intrinsics']
         ret_sample['extrinsics'] = sample['extrinsics']
+        ret_sample['oxts']       = sample['oxts']
 
         return ret_sample
+
+    def get_mul_items(self, indx_list):
+        items = []
+        for x in indx_list:
+            items.append(self.__getitem__(x))
+        return items

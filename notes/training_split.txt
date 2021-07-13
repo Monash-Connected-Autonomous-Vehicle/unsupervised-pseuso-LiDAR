@@ -1,0 +1,11 @@
+The reprojection of the raw lidar point cloud is a pretty bad way of measuring accuracy.
+
+I think people should just entirely move away from the eigen split and switch to the new depth benchmark and we had already been planning on adding those results to monodepth 1 and 2.
+
+Finally for the incorrect flag, the actual error is here, the last argument 'vel_depth' should be False.
+Eigen originally computed the depths wrt to the lidar instead of the cameras, we had this flag in order to reproduce their results.
+The results change a little bit, some metrics go up, some go down.
+
+I would recommend against using the fixed evaluation as most methods recently published actually use the flawed evaluation code and just simply move to the new depth benchmark.
+
+https://github.com/mrharicot/monodepth/issues/166
