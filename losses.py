@@ -115,6 +115,7 @@ class Losses:
         if mode == 'mean':
             return (diff_1.mean() + diff_2.mean())/2
         if mode == 'min':
+            # element-wise minimum
             min_rpl = torch.minimum(diff_1, diff_2)
             return min_rpl.mean()
 

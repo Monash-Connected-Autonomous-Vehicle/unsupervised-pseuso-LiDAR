@@ -15,6 +15,9 @@ from PIL import Image
 from .calibration import Calibration
 from .oxts_parser import *
 
+# TODO: Update to contain all images from the
+# Kitti annotated depth data split. We therefore 
+# ignore all lidar transformation depth images.
 class UnSupKittiDataset(Dataset):
 
     '''
@@ -37,6 +40,7 @@ class UnSupKittiDataset(Dataset):
         super(UnSupKittiDataset, self).__init__()
         self.count = 0
         self.kitti_filepath  = config['datasets']['path']
+        self.split           = config['datasets']['split']
         self.img_width       = config['datasets']['augmentation']['image_width']
         self.img_height      = config['datasets']['augmentation']['image_height']
         self.seq_len         = config['datasets']['sequence_length']
@@ -83,7 +87,7 @@ class UnSupKittiDataset(Dataset):
 
         return img
 
-    def _init_samples(self):
+    def _init_samples(self, split):
         '''
             A sample is of the form:
             sample = {
@@ -94,8 +98,11 @@ class UnSupKittiDataset(Dataset):
                 }
         '''
         
+        # if split == 'kitti_annotated':
+        #     self.kitti_filepath += 'data_depth_anotated'
+
         img_dirs, oxts_dirs   = self.get_dirs(self.kitti_filepath)
-        mid        = self.seq_len//2
+        mid      = self.seq_len//2
         ref_imgs = []
 
         for window in self.sliding_window(img_dirs, self.seq_len):
@@ -108,7 +115,8 @@ class UnSupKittiDataset(Dataset):
             sample['tgt']      = tgt_dir
             sample['ref_imgs'] = ref_img_dirs
             
-            calib_dir = tgt_dir[:20] # if no data is being loaded, check the file stuct
+            calib_dir = tgt_dir[:20] # if no data is being loaded, check the file stuctÔ¨Ô
+            
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
             sample['extrinsics'] = calib.Tx
