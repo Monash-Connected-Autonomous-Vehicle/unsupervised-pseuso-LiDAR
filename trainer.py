@@ -17,7 +17,7 @@ import numpy as np
 
 from   PIL import Image
 
-from utils.kitti_dataset import UnSupKittiDataset
+from dataloaders import UnSupFullKittiDataset
 from losses import Losses
 
 
@@ -49,7 +49,7 @@ class Trainer:
         transform = transforms.ToTensor()
         
         # init dataset
-        self.dataset = UnSupKittiDataset(config, transforms=transform)
+        self.dataset = UnSupFullKittiDataset(config, transforms=transform)
 
         # create a dataset splits (70, 15, 15) -> (train, val, test)
         random_seed      = config['action']['random_seed']

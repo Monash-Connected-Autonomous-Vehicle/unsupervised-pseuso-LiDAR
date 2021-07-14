@@ -10,7 +10,6 @@ model:
         version: '1'
 datasets:
     path: '../KITTI/'
-    split: 'kitti_annotated'
     augmentation:
         image_width: 1242
         image_height: 375

@@ -12,14 +12,56 @@ import matplotlib.pyplot as plt
 
 from PIL import Image
 
-from .calibration import Calibration
-from .oxts_parser import *
+from utils.calibration import Calibration
+from utils.oxts_parser import *
 
-# TODO: Update to contain all images from the
-# Kitti annotated depth data split. We therefore 
-# ignore all lidar transformation depth images.
-class UnSupKittiDataset(Dataset):
+class KittiDataset(Dataset):
+    def __init__(self, config, transforms=None):
 
+        super(KittiDataset, self).__init__()
+        self.count = 0
+        self.kitti_filepath  = config['datasets']['path']
+        self.img_width       = config['datasets']['augmentation']['image_width']
+        self.img_height      = config['datasets']['augmentation']['image_height']
+        self.seq_len         = config['datasets']['sequence_length']
+
+        self.transforms = transforms
+        self.samples = []
+
+    def load_img(self, path):
+        img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
+
+        if transforms:
+            img = self.transforms(img)
+        return img
+    
+    def depth_read(filename):
+        
+        depth_png = np.array(Image.open(filename), dtype=int)
+        # make sure we have a proper 16bit depth map here.. not 8bit!
+        assert(np.max(depth_png) > 255)
+
+        depth = depth_png.astype(np.float) / 256.
+        depth[depth_png == 0] = -1.
+        return depth
+        
+    def sliding_window(self, iterable, size):
+        '''
+            returns a iterable generator object 
+            that is a sliding windowed list of length 
+            `size`.
+        '''
+        iterable = iter(iterable)
+        window = deque(islice(iterable, size), maxlen=size)
+        for item in iterable:
+            yield list(window)
+            window.append(item)
+        if window:  
+            yield list(window)
+
+# TODO: use image transforms on velodyne points
+# to create GT.
+class UnSupFullKittiDataset(KittiDataset):
     '''
         Assumming a base directory of 'KITTI/date/'
         the stack would be as follows:
@@ -35,34 +77,10 @@ class UnSupKittiDataset(Dataset):
         ...
     '''
 
-    def __init__(self, config, transforms=None):
-
-        super(UnSupKittiDataset, self).__init__()
-        self.count = 0
-        self.kitti_filepath  = config['datasets']['path']
-        self.split           = config['datasets']['split']
-        self.img_width       = config['datasets']['augmentation']['image_width']
-        self.img_height      = config['datasets']['augmentation']['image_height']
-        self.seq_len         = config['datasets']['sequence_length']
-
-        self.transforms = transforms
-        self.samples = []
-
+    def __init__(self, *args, **kwargs):
+        super(UnSupFullKittiDataset, self).__init__(*args, **kwargs)
         self._init_samples()
 
-    def sliding_window(self, iterable, size):
-        '''
-            returns a iterable generator object 
-            that is a sliding windowed list of length 
-            `size`.
-        '''
-        iterable = iter(iterable)
-        window = deque(islice(iterable, size), maxlen=size)
-        for item in iterable:
-            yield list(window)
-            window.append(item)
-        if window:  
-            yield list(window)
 
     def get_dirs(self, path):
         drive_dates = glob.glob(path + '*')
@@ -78,16 +96,8 @@ class UnSupKittiDataset(Dataset):
                 oxts_dirs.extend(oxts_pckts)
 
         return sorted(img_dirs), sorted(oxts_dirs)
-    
-    def load_img(self, path):
-        img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
 
-        if transforms:
-            img = self.transforms(img)
-
-        return img
-
-    def _init_samples(self, split):
+    def _init_samples(self):
         '''
             A sample is of the form:
             sample = {
@@ -97,9 +107,8 @@ class UnSupKittiDataset(Dataset):
                 'extrinsics': transformation matrix
                 }
         '''
-        
-        # if split == 'kitti_annotated':
-        #     self.kitti_filepath += 'data_depth_anotated'
+
+        print('Initializing samples..')
 
         img_dirs, oxts_dirs   = self.get_dirs(self.kitti_filepath)
         mid      = self.seq_len//2
