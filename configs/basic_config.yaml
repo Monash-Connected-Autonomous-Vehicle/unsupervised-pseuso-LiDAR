@@ -10,13 +10,13 @@ model:
         version: '1'
 datasets:
     path: '../KITTI/'
+    split: './splits/kitti_depth_annotated_train_files.txt'
     augmentation:
         image_width: 1242
         image_height: 375
         shuffle: True
     sequence_length: 3
     dataset: ['KITTI']
-    depth_type: ['velodyne']
 action:
     mode : 'train'
     from_scratch : True

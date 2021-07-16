@@ -17,7 +17,7 @@ import numpy as np
 
 from   PIL import Image
 
-from dataloaders import UnSupFullKittiDataset
+from dataloaders import UnSupKittiDataset
 from losses import Losses
 
 
@@ -49,12 +49,12 @@ class Trainer:
         transform = transforms.ToTensor()
         
         # init dataset
-        self.dataset = UnSupFullKittiDataset(config, transforms=transform)
+        self.dataset = UnSupKittiDataset(config, transforms=transform)
 
         # create a dataset splits (70, 15, 15) -> (train, val, test)
         random_seed      = config['action']['random_seed']
         validation_split = config['action']['split'][1]
-        test_split       = config['action']['split'][2]
+        # test_split       = config['action']['split'][2]
         dataset_size = len(self.dataset)
         indices      = list(range(dataset_size))
         split    = int(np.floor(validation_split * dataset_size))

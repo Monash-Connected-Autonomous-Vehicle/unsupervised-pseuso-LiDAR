@@ -46,13 +46,18 @@ def kitti_depth_annotated_prepare(kitti_dir, Test=False):
                     file.write(img_dir[img_indx - 1] + ' ')
                     file.write(img_dir[img_indx + 1] + ' ')
                     file.write(ann_img + '\n')  
-            break
+                else:
+                    print(img_indx)
+            
 
+def count_images(txt_file):
+    file  = open(txt_file, 'r')
+    lines = [line.strip('\n') for line in file]
+    print(len(lines))
 
 if __name__ == "__main__":
-
     kitti_depth_annotated_prepare('../KITTI/')
-    
+    count_images('./splits/kitti_depth_annotated_train_files.txt')
 
 
 
