@@ -1,8 +1,17 @@
-import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
+from utils.pose_geometry import disp_to_depth
+
 def compute_errors(gt, pred):
+
+    # convert to numpy
+    gt   = gt.cpu().detach().numpy()
+    
+    pred = disp_to_depth(pred[0])
+    pred = pred.cpu().detach().numpy()
+
+    # calculate Accuracy
     thresh = np.maximum((gt / pred), (pred / gt))
     d1 = (thresh < 1.25).mean()
     d2 = (thresh < 1.25 ** 2).mean()

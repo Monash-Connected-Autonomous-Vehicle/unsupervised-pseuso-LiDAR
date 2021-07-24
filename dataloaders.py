@@ -121,7 +121,6 @@ class UnSupKittiDataset(KittiDataset):
 
             sample['tgt']      = sample_dirs[0]
             sample['ref_imgs'] = sample_dirs[1:3]
-            print(sample['ref_imgs'])
 
             calib_dir = sample_dirs[0][:20] 
             calib     = Calibration(calib_dir)

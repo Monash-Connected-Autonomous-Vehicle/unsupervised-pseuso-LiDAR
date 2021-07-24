@@ -19,12 +19,26 @@ from   PIL import Image
 
 from dataloaders import UnSupKittiDataset
 from losses import Losses
+from evaluate import compute_errors
 
 
 class Trainer:
     def __init__(self, config):
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device    = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.save_path = './models/pretrained/'+ config['model']['name'] +'.pth'
+
+        # init training and optimizer variables
+        self.batch_size          = config['action']['batch_size']
+        self.learning_rate       = config['action']['optimizer']['depth']['lr']
+        self.scheduler_step_size = config['action']['scheduler']['step_size']
+        self.gamma               = config['action']['scheduler']['gamma']
+        self.shuffle_dataset     = config['datasets']['augmentation']['shuffle']
+        self.mode                = config['action']['mode']
+        self.train_from_scratch  = config['action']['from_scratch']
+        self.num_epochs          = config['action']['num_epochs']
+        self.epoch      = 0
+        self.step       = 0 
 
         # init models based on config
         self.depth_model = self.load_from_config(config, model_type='depth')
@@ -34,15 +48,29 @@ class Trainer:
             assert("Config file format is incorrect: Take a look at example \
                     config files")
 
-        # init training and optimizer variables
-        self.batch_size          = config['action']['batch_size']
-        self.learning_rate       = config['action']['optimizer']['depth']['lr']
-        self.scheduler_step_size = config['action']['scheduler']['step_size']
-        self.gamma               = config['action']['scheduler']['gamma']
-        self.shuffle_dataset     = config['datasets']['augmentation']['shuffle']
-        self.mode                = config['action']['mode']
+        # init model, weigths, and params
+        # TODO: Check if this works
         self.parameters_train  = list(self.depth_model.parameters())
         self.parameters_train += list(self.pose_model.parameters())
+
+        # init optimiser and LR shcheduler
+        self.model_optimizer = optim.Adam(self.parameters_train, self.learning_rate)
+        self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
+
+        # init losses and acc.
+        self.criterion = Losses()
+        self.loss      = None
+        self.valid_acc = 0
+        # load checkpoint
+        if self.train_from_scratch:
+            print("Training from scratch..")
+
+            # create checkpoint
+
+
+        else:
+            self.load_chkpnt()
+
 
         # init train transforms
         # TODO: Add composite transforms
@@ -64,34 +92,43 @@ class Trainer:
             np.random.shuffle(indices)
 
         train_indices, val_indices  = indices[split:], indices[:split]
-        train_indices, test_indices = train_indices[split:], train_indices[:split]
 
         # Creating PT data samplers and loaders:
         train_sampler = SubsetRandomSampler(train_indices)
         valid_sampler = SubsetRandomSampler(val_indices)
-        test_sampler  = SubsetRandomSampler(test_indices)
 
-        self.train_loader     = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
+        self.train_loader      = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
                                            sampler=train_sampler, num_workers=0)
         self.validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
                                             sampler=valid_sampler)
-        self.test_loader       = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
-                                           sampler=test_sampler)
+            
+    def save_chkpnt(self):
+        self.checkpoint = { 'epoch': self.epoch, 
+                            'dpth_mdl_state_dict': self.depth_model.state_dict(),
+                            'pose_mdl_state_dict': self.pose_model.state_dict(),
+                            'optimizer_state_dict': self.model_optimizer.state_dict(),
+                            'loss': self.loss,
+                            'valid_acc': self.valid_acc
+                        }
 
-        # init optimiser and LR shcheduler
-        # TODO: if not config >> from scratch, load optimiser for continual training
-        self.model_optimizer = optim.Adam(self.parameters_train, self.learning_rate)
-        self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
+        # save file
+        torch.save(self.checkpoint, self.save_path)
+        
 
-        # init losses
-        self.criterion = Losses()
-    
+    def load_chkpnt(self):
+        print("Loading Pretrained model..")
+
+        # find checkpoint and load model
+        self.checkpoint = torch.load(self.save_path)
+        self.depth_model.load_state_dict(self.checkpoint['dpth_mdl_state_dict'])
+        self.pose_model.load_state_dict(self.checkpoint['pose_mdl_state_dict'])
+        self.model_optimizer .load_state_dict(self.checkpoint['optimizer_state_dict'])
+        self.epoch = self.checkpoint['epoch']
+        self.valid_acc = self.checkpoint['valid_acc']
+
     def load_from_config(self, config, model_type='depth'):
         '''
             Returns the models from a config file
-
-            # TODO:if checkpoint exists, load weights
-            # else init weights (xavier: uniformly distributed)
         '''
         module = importlib.import_module('models.'+ model_type + '.' + \
                                         config['model'][model_type]['file'])
@@ -101,10 +138,10 @@ class Trainer:
         for name, obj in getmembers(module, isclass):
             if name == model_name:
                 model = obj
-        
-        # init model and weigths
+
         model = model()
-        model.init_weights()
+        if not self.train_from_scratch:
+            model.init_weights()
         return model
 
     def set_train(self):
@@ -118,34 +155,53 @@ class Trainer:
         self.pose_model.eval()
 
     def train(self):
-        self.num_epochs = config['action']['num_epochs']
-        self.epoch      = 0
-        self.step       = 0 
+
+        self.set_train()
         self.start_time = time.time()
 
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
             break
-            # save model
+    
+    def validate(self):
 
+        self.set_eval()
+
+        # calculate evaluation accuracy
+        # with torch.no_grad():
+        for batch_indx, samples in enumerate(self.validation_loader):
+            outputs, self.loss = self.process_batch(samples)
+            
+            # calculate the accuracy
+            gt = samples['groundtruth']
+
+            # compute_error
+            silog, abs_rel, log10, rms, sq_rel, log_rms, d1, d2, d3 = compute_errors(gt, outputs[0])
+            
+            # compare againt checkpoint
+            if abs_rel > self.valid_acc:
+                self.valid_acc = abs_rel
+                
+                # save checkpoint
+                self.save_chkpnt()
+                
     def run_epoch(self):
-
-        self.set_train()
 
         # process batch
         for batch_indx, samples in enumerate(self.train_loader):
 
             self.model_optimizer.zero_grad()
-
-            outputs, loss = self.process_batch(samples)
-            loss.backward()
-            self.model_optimizer.step()
+            
+            outputs, self.loss = self.process_batch(samples)
+            self.loss.backward()
+            self.model_optimizer.step()   
             break
         
         self.model_lr_scheduler.step()
 
         # validate after each epoch?
+        self.validate()
 
     def process_batch(self, samples):
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
@@ -158,7 +214,7 @@ class Trainer:
 
         # forward + backward + optimize
         loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics)
-
+        
         return [disp, poses], loss
 
 
