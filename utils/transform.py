@@ -66,6 +66,7 @@ class Transform():
         Returns:
             array of (u,v,1) cam coordinates -- [B, 3, H, W]
         """
+
         b, h, w = depth.size()
         if (pixel_coords is None) or pixel_coords.size(2) < h:
             self.set_id_grid(depth)

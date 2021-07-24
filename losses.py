@@ -3,14 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.pose_geometry import inverse_warp
+from utils.pose_geometry import inverse_warp, disp_to_depth
 
 # TODO:
-#  1. Find losses to be made
-#  2. Build multiview photomentric loss (appearance matching loss)
-#  3. Add minimum per pixel photometric loss
-#  4. Build depth smoothness loss
-#  5. Add velocity supervision loss
+#  1. Build depth smoothness loss
+#  2. Add velocity supervision loss
 
 class SSIM:
 
@@ -58,18 +55,6 @@ class Losses:
     def __init__(self):
         self.SSIM = SSIM()
 
-    def disp_to_depth(self, disp, min_depth=0.1, max_depth=120.0):
-        """Convert network's sigmoid output into depth prediction
-        The formula for this conversion is given in the 'additional considerations'
-        section of the paper.
-        """
-        min_disp = 1 / max_depth
-        max_disp = 1 / min_depth
-
-        scaled_disp = min_disp + (max_disp - min_disp) * disp
-        depth = 1 / scaled_disp
-        return depth
-
     def compute_reprojection_loss(self, pred, target, no_ssim=False):
         """Computes reprojection loss between a batch of predicted and target images
         """
@@ -92,7 +77,7 @@ class Losses:
 
         return reprojection_loss
 
-    def multiview_appearence_matching(self, tgt_img, ref_imgs, depth, poses, intrinsics, mode='mean'):
+    def multiview_appearence_matching(self, tgt_img, ref_imgs, depth, poses, intrinsics, mode='min'):
         '''
         This is the multiview photometric loss that
         uses SSIM appearance matching.
@@ -104,7 +89,7 @@ class Losses:
         poses_t_0 = poses[:, 0, :]
         poses_t_2 = poses[:, 1, :]
         intrinsics = intrinsics[:, :3, :3]
-
+        
         # do an inverse warp
         projected_img_t_0, valid_points_t_0 = inverse_warp(ref_imgs[0], depth, poses_t_0, intrinsics)
         projected_img_t_2, valid_points_t_2 = inverse_warp(ref_imgs[1], depth, poses_t_2, intrinsics)
@@ -147,7 +132,7 @@ class Losses:
         # torch.Size([4, 1, 188, 621])
         # torch.Size([4, 1, 94, 311])
         # torch.Size([4, 1, 47, 156])
-        depth = self.disp_to_depth(disparity[0])
+        depth = disp_to_depth(disparity[0])
 
         loss  = self.multiview_appearence_matching(tgt_img, ref_imgs, depth, poses, intrinsics, mode='mean')
         loss += self.smooth_loss(depth)
