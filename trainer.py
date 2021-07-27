@@ -4,6 +4,11 @@ import sys
 import os
 import time
 from   inspect import getmembers, isclass
+import matplotlib.pyplot as plt
+import numpy as np
+from   PIL import Image
+import wandb
+
 
 import torch
 from   torch.utils.data import Dataset
@@ -11,11 +16,6 @@ from   torchvision import transforms, utils
 import torch.nn.functional as F
 import torch.optim as optim
 from   torch.utils.data.sampler import SubsetRandomSampler
-
-import matplotlib.pyplot as plt
-import numpy as np
-
-from   PIL import Image
 
 from dataloaders import UnSupKittiDataset
 from losses import Losses
@@ -64,13 +64,9 @@ class Trainer:
         # load checkpoint
         if self.train_from_scratch:
             print("Training from scratch..")
-
-            # create checkpoint
-
-
+            self.save_chkpnt()
         else:
             self.load_chkpnt()
-
 
         # init train transforms
         # TODO: Add composite transforms
@@ -101,6 +97,9 @@ class Trainer:
                                            sampler=train_sampler, num_workers=0)
         self.validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
                                             sampler=valid_sampler)
+        
+        # Start a new run, tracking hyperparameters in config
+        wandb.init(project="unsup-depth-estimation", config=config)
             
     def save_chkpnt(self):
         self.checkpoint = { 'epoch': self.epoch, 
@@ -114,7 +113,6 @@ class Trainer:
         # save file
         torch.save(self.checkpoint, self.save_path)
         
-
     def load_chkpnt(self):
         print("Loading Pretrained model..")
 
@@ -164,6 +162,7 @@ class Trainer:
             self.run_epoch()
             break
     
+    @torch.no_grad()
     def validate(self):
 
         self.set_eval()
@@ -194,14 +193,17 @@ class Trainer:
             self.model_optimizer.zero_grad()
             
             outputs, self.loss = self.process_batch(samples)
-            self.loss.backward()
+            sum(self.loss).backward()
             self.model_optimizer.step()   
-            break
-        
+
+            wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
+                    "smoothness_loss":self.loss[1]}, step=batch_indx)
+    
         self.model_lr_scheduler.step()
 
         # validate after each epoch?
-        self.validate()
+        # self.validate()
+        # wandb.log({'acc': self.valid_acc}, step=self.epoch)
 
     def process_batch(self, samples):
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)

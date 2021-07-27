@@ -6,8 +6,7 @@ import torch.nn.functional as F
 from utils.pose_geometry import inverse_warp, disp_to_depth
 
 # TODO:
-#  1. Build depth smoothness loss
-#  2. Add velocity supervision loss
+#  1. Add velocity supervision loss
 
 class SSIM:
 
@@ -134,10 +133,10 @@ class Losses:
         # torch.Size([4, 1, 47, 156])
         depth = disp_to_depth(disparity[0])
 
-        loss  = self.multiview_appearence_matching(tgt_img, ref_imgs, depth, poses, intrinsics, mode='mean')
-        loss += self.smooth_loss(depth)
+        loss_mam    = self.multiview_appearence_matching(tgt_img, ref_imgs, depth, poses, intrinsics, mode='mean')
+        loss_smooth = self.smooth_loss(depth)
 
-        return loss
+        return [loss_mam, loss_smooth]
 
     
 
