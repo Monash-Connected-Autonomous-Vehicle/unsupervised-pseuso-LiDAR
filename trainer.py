@@ -61,6 +61,7 @@ class Trainer:
         self.criterion = Losses()
         self.loss      = None
         self.valid_acc = 0
+        
         # load checkpoint
         if self.train_from_scratch:
             print("Training from scratch..")
