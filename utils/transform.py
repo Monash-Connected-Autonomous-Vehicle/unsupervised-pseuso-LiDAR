@@ -71,7 +71,7 @@ class Transform():
         if (pixel_coords is None) or pixel_coords.size(2) < h:
             self.set_id_grid(depth)
         current_pixel_coords = pixel_coords[..., :h, :w].expand(b, 3, h, w).reshape(b, 3, -1)  # [B, 3, H*W]
-        current_pixel_coords = current_pixel_coords.type(torch.DoubleTensor)
+        current_pixel_coords = current_pixel_coords.type(torch.cuda.DoubleTensor)
 
         cam_coords = (intrinsics_inv @ current_pixel_coords).reshape(b, 3, h, w)
         return cam_coords * depth.unsqueeze(1)

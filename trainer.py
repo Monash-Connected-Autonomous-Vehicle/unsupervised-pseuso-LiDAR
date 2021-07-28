@@ -76,13 +76,19 @@ class Trainer:
         # init dataset
         self.dataset = UnSupKittiDataset(config, transforms=transform)
 
-        # create a dataset splits (70, 15, 15) -> (train, val, test)
+        # create a dataset splits 
         random_seed      = config['action']['random_seed']
         validation_split = config['action']['split'][1]
-        # test_split       = config['action']['split'][2]
+
+        self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
+
+        # Start a new run, tracking hyperparameters in config
+        wandb.init(project="unsup-depth-estimation", config=config)
+
+    def create_loaders(self, random_seed, valid_split_ratio):
         dataset_size = len(self.dataset)
         indices      = list(range(dataset_size))
-        split    = int(np.floor(validation_split * dataset_size))
+        split    = int(np.floor(valid_split_ratio * dataset_size))
 
         if self.shuffle_dataset :
             np.random.seed(random_seed)
@@ -94,13 +100,12 @@ class Trainer:
         train_sampler = SubsetRandomSampler(train_indices)
         valid_sampler = SubsetRandomSampler(val_indices)
 
-        self.train_loader      = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
-                                           sampler=train_sampler, num_workers=0)
-        self.validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
-                                            sampler=valid_sampler)
-        
-        # Start a new run, tracking hyperparameters in config
-        wandb.init(project="unsup-depth-estimation", config=config)
+        train_loader      = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
+                                           sampler=train_sampler, num_workers=16)
+        validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
+                                            sampler=valid_sampler, num_workers=8)
+        return train_loader, validation_loader
+
             
     def save_chkpnt(self):
         self.checkpoint = { 'epoch': self.epoch, 
@@ -141,7 +146,7 @@ class Trainer:
         model = model()
         if not self.train_from_scratch:
             model.init_weights()
-        return model
+        return model.to(self.device)
 
     def set_train(self):
         print('Training...')
@@ -161,7 +166,6 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
-            break
     
     @torch.no_grad()
     def validate(self):
