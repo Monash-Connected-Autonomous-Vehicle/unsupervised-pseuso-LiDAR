@@ -134,7 +134,7 @@ def load_oxts_packets_and_poses(oxts_files):
 
                 T_w_imu = transform_from_rot_trans(R, t - origin)
 
-                oxts.append(OxtsData(packet, T_w_imu))
+                oxts.append(T_w_imu)
 
     return oxts
 

@@ -202,8 +202,8 @@ class Trainer:
             self.model_optimizer.step()   
 
             wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
-                    "smoothness_loss":self.loss[1]}, step=batch_indx)
-    
+                    "smoothness_loss":self.loss[1]})
+            
         self.model_lr_scheduler.step()
 
         # validate after each epoch?

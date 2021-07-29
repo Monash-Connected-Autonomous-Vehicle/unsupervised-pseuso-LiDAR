@@ -33,20 +33,7 @@ class KittiDataset(Dataset):
 
         if transforms:
             img = self.transforms(img)
-        return img
-    
-    def load_depth_img(self, filename):
-
-        if not filename:
-            return None
-        
-        depth_png = np.array(Image.open(filename), dtype=int)
-        # make sure we have a proper 16bit depth map here.. not 8bit!
-        assert(np.max(depth_png) > 255)
-
-        depth = depth_png.astype(np.float) / 256.
-        depth[depth_png == 0] = -1.
-        return depth
+        return img.squeeze()
         
     def sliding_window(self, iterable, size):
         '''
@@ -88,7 +75,7 @@ class KittiDataset(Dataset):
         ret_sample['extrinsics'] = sample['extrinsics']
         ret_sample['oxts']       = sample['oxts']
 
-        ret_sample['groundtruth'] = self.load_depth_img(sample['groundtruth'])
+        ret_sample['groundtruth'] = self.load_img(sample['groundtruth'])
 
         return ret_sample
 
