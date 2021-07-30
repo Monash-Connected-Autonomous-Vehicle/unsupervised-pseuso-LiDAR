@@ -101,6 +101,4 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
 
     projected_img = F.grid_sample(img.type(torch.cuda.DoubleTensor), src_pixel_coords, mode='bilinear', padding_mode=padding_mode, align_corners=True)
 
-    valid_points = src_pixel_coords.abs().max(dim=-1)[0] <= 1
-
-    return projected_img, valid_points
+    return projected_img

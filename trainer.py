@@ -181,14 +181,16 @@ class Trainer:
             gt = samples['groundtruth']
 
             # compute_error
-            silog, abs_rel, log10, rms, sq_rel, log_rms, d1, d2, d3 = compute_errors(gt, outputs[0])
+            acc = compute_errors(gt, outputs[0])
             
+            wandb.log(acc, step=self.epoch)
+
             # compare againt checkpoint
-            if abs_rel > self.valid_acc:
-                self.valid_acc = abs_rel
+            # if abs_rel > self.valid_acc:
+            #     self.valid_acc = abs_rel
                 
-                # save checkpoint
-                self.save_chkpnt()
+            # save checkpoint
+            self.save_chkpnt()
                 
     def run_epoch(self):
 
@@ -203,12 +205,12 @@ class Trainer:
 
             wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                     "smoothness_loss":self.loss[1]})
-            
+
+        print("EPOCH: " + str(self.epoch) + " LOSS: " + sum(self.loss))
         self.model_lr_scheduler.step()
 
         # validate after each epoch?
-        # self.validate()
-        # wandb.log({'acc': self.valid_acc}, step=self.epoch)
+        self.validate()
 
     def process_batch(self, samples):
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)

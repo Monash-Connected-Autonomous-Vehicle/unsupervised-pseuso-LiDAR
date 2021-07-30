@@ -47,17 +47,21 @@ class SSIM:
         ssim_d = (mu_x_sq + mu_y_sq + C1) * v2
         ssim = ssim_n / ssim_d
 
-        return ssim
+        # SSIM is actually in the [-1, 1] range.
+        # The clamping is here to avoid possible 
+        # overflow in case SSIM_d becomes too small 
+        # resulting in precision issues.
+        return torch.clamp((1. - ssim) / 2., 0., 1.)
 
 class Losses:
 
     def __init__(self):
         self.SSIM = SSIM()
 
-    def compute_reprojection_loss(self, pred, target, valid_pnts, no_ssim=True):
+    def compute_reprojection_loss(self, pred, target, no_ssim=False):
         """Computes reprojection loss between a batch of predicted and target images
         """
-        abs_diff = torch.abs(target - pred) #* valid_pnts.unsqueeze(1).float()
+        abs_diff = torch.abs(target - pred)
         l1_loss = abs_diff.mean(1, True).squeeze().mean(-1).mean(-1) # pytorch multidim reduce issue
 
         if no_ssim:
@@ -89,11 +93,11 @@ class Losses:
         poses_t_2 = poses[:, 1, :]
         
         # do an inverse warp
-        projected_img_t_0, valid_pnts_0 = inverse_warp(ref_imgs[0], depth, poses_t_0, intrinsics)
-        projected_img_t_2, valid_pnts_2 = inverse_warp(ref_imgs[1], depth, poses_t_2, intrinsics)
+        projected_img_t_0 = inverse_warp(ref_imgs[0], depth, poses_t_0, intrinsics)
+        projected_img_t_2 = inverse_warp(ref_imgs[1], depth, poses_t_2, intrinsics)
 
-        diff_1  = self.compute_reprojection_loss(projected_img_t_0, tgt_img, valid_pnts_0)
-        diff_2  = self.compute_reprojection_loss(projected_img_t_2, tgt_img, valid_pnts_2)
+        diff_1  = self.compute_reprojection_loss(projected_img_t_0, tgt_img)
+        diff_2  = self.compute_reprojection_loss(projected_img_t_2, tgt_img)
 
         if mode == 'mean':
             return (diff_1.mean() + diff_2.mean())/2

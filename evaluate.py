@@ -32,4 +32,8 @@ def compute_errors(gt, pred):
     err = np.abs(np.log10(pred) - np.log10(gt))
     log10 = np.mean(err)
 
-    return [silog, abs_rel, log10, rms, sq_rel, log_rms, d1, d2, d3]
+    accuracy = {"silog": silog, "abs_rel": abs_rel, "log10": log10, \
+                "rms": rms, "sq_rel": rms, "log_rms": log_rms, \
+                "d1": d1, "d2": d2, "d3": d3}
+
+    return accuracy
