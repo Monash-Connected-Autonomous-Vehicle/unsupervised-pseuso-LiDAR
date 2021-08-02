@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from   PIL import Image
 import wandb
+from tqdm import tqdm
 
 
 import torch
@@ -191,14 +192,13 @@ class Trainer:
             # compare againt checkpoint
             # if abs_rel > self.valid_acc:
             #     self.valid_acc = abs_rel
-                
-            # save checkpoint
-            self.save_chkpnt()
+            
                 
     def run_epoch(self):
 
         # process batch
-        for batch_indx, samples in enumerate(self.train_loader):
+        for batch_indx, samples in tqdm(enumerate(self.train_loader), unit='batch',
+                                        total=len(self.train_loader), desc=f"Epoch {self.epoch} BATCH"):
 
             self.model_optimizer.zero_grad()
             
@@ -213,7 +213,10 @@ class Trainer:
         self.model_lr_scheduler.step()
 
         # validate after each epoch?
-        self.validate()
+        # self.validate()
+
+        # save checkpoint
+        self.save_chkpnt()
 
     def process_batch(self, samples):
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
