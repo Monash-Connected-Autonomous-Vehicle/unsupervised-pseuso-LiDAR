@@ -19,6 +19,7 @@ datasets:
     dataset: ['KITTI']
 action:
     mode : 'train'
+    MLOps: False
     from_scratch : True
     split: [0.8, 0.2]
     random_seed : 42

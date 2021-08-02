@@ -35,6 +35,7 @@ class Trainer:
         self.gamma               = config['action']['scheduler']['gamma']
         self.shuffle_dataset     = config['datasets']['augmentation']['shuffle']
         self.mode                = config['action']['mode']
+        self.MLOps                = config['action']['MLOps']
         self.train_from_scratch  = config['action']['from_scratch']
         self.num_epochs          = config['action']['num_epochs']
         self.epoch      = 0
@@ -83,7 +84,8 @@ class Trainer:
         self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
 
         # Start a new run, tracking hyperparameters in config
-        # wandb.init(project="unsup-depth-estimation", config=config)
+        if self.MLOps:
+            wandb.init(project="unsup-depth-estimation", config=config)
 
     def create_loaders(self, random_seed, valid_split_ratio):
         dataset_size = len(self.dataset)
@@ -183,7 +185,8 @@ class Trainer:
             # compute_error
             acc = compute_errors(gt, outputs[0])
             
-            # wandb.log(acc, step=self.epoch)
+            if self.MLOps:
+                wandb.log(acc, step=self.epoch)
 
             # compare againt checkpoint
             # if abs_rel > self.valid_acc:
@@ -203,10 +206,10 @@ class Trainer:
             sum(self.loss).backward()
             self.model_optimizer.step()   
 
-            wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
-                    "smoothness_loss":self.loss[1]})
+            if self.MLOps:
+                wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
+                        "smoothness_loss":self.loss[1]})
 
-        # print("EPOCH: " + str(self.epoch) + " LOSS: " + sum(self.loss))
         self.model_lr_scheduler.step()
 
         # validate after each epoch?
