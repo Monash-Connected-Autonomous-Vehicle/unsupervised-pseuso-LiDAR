@@ -83,7 +83,7 @@ class Trainer:
         self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
 
         # Start a new run, tracking hyperparameters in config
-        wandb.init(project="unsup-depth-estimation", config=config)
+        # wandb.init(project="unsup-depth-estimation", config=config)
 
     def create_loaders(self, random_seed, valid_split_ratio):
         dataset_size = len(self.dataset)
@@ -183,7 +183,7 @@ class Trainer:
             # compute_error
             acc = compute_errors(gt, outputs[0])
             
-            wandb.log(acc, step=self.epoch)
+            # wandb.log(acc, step=self.epoch)
 
             # compare againt checkpoint
             # if abs_rel > self.valid_acc:
@@ -206,7 +206,7 @@ class Trainer:
             wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                     "smoothness_loss":self.loss[1]})
 
-        print("EPOCH: " + str(self.epoch) + " LOSS: " + sum(self.loss))
+        # print("EPOCH: " + str(self.epoch) + " LOSS: " + sum(self.loss))
         self.model_lr_scheduler.step()
 
         # validate after each epoch?
@@ -225,10 +225,3 @@ class Trainer:
         loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics)
         
         return [disp, poses], loss
-
-
-with open('configs/basic_config.yaml') as file:
-    config = yaml.full_load(file)
-
-trainer = Trainer(config)
-trainer.train()
