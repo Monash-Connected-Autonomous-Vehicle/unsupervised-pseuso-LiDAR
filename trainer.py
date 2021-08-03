@@ -169,6 +169,7 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
+            break
     
     @torch.no_grad()
     def validate(self):
