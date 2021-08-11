@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils.pose_geometry import disp_to_depth
+from geometry.pose_geometry import disp_to_depth
 
 def compute_errors(gt, pred):
 

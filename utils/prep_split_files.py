@@ -15,20 +15,18 @@ import shutil
     tgt_img_dir ref_img_0_dir ref_img_2_dir annotated_depth_img_dir
 '''
 
-def kitti_depth_annotated_prepare(kitti_dir, test=False):
+def kitti_depth_annotated_prepare(kitti_dir, destination_dir, test=False):
 
     depth_dir = None
     file      = None
     # get annotated images
     if test:
         depth_dir = kitti_dir + 'data_depth_annotated/val/*_sync'
-        file = open("./splits/kitti_depth_annotated_test_files.txt","w")
+        file = open(destination_dir,"w")
     else:
         depth_dir = kitti_dir + 'data_depth_annotated/train/*_sync'
-        file = open("./splits/kitti_depth_annotated_train_files.txt","w")
+        file = open(destination_dir,"w")
     folders = sorted(glob.glob(depth_dir))
-    
-    
 
     for folder in folders:
         date  = folder[-26:-16]
@@ -63,9 +61,10 @@ def count_images(txt_file):
     print(len(lines))
 
 if __name__ == "__main__":
-    kitti_depth_annotated_prepare('../DATASETS/KITTI/', test=True)
-    count_images('./splits/kitti_depth_annotated_test_files.txt')
+    kitti_depth_annotated_prepare(kitti_dir='../KITTI/', destination_dir='./splits/kitti_mac.txt', test=False)
+    count_images('./splits/kitti_mac.txt')
 
 
-
-
+# "./splits/kitti_mac.txt"
+# "./splits/kitti_depth_annotated_test_files.txt"
+# "./splits/kitti_depth_annotated_train_files.txt"

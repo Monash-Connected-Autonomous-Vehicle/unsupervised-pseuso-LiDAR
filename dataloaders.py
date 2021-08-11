@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 
 from PIL import Image
 
-from utils.calibration import Calibration
-from utils.oxts_parser import *
+from geometry.calibration import Calibration
+from geometry.oxts_parser import *
 
 class KittiDataset(Dataset):
     def __init__(self, config, transforms=None):

@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.pose_geometry import inverse_warp, disp_to_depth
+from geometry.pose_geometry import inverse_warp, disp_to_depth
 
 # TODO:
 #  1. Add velocity supervision loss
