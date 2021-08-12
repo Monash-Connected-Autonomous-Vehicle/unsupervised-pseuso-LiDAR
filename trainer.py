@@ -21,13 +21,14 @@ from   torch.utils.data.sampler import SubsetRandomSampler
 from dataloaders import UnSupKittiDataset
 from losses import Losses
 from evaluate import compute_errors
+from geometry.pose_geometry import disp_to_depth
 
 
 class Trainer:
     def __init__(self, config):
 
         self.device    = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.save_path = './models/pretrained/'+ config['model']['name'] +'.pth'
+        self.save_path = './pretrained/'+ config['model']['name'] +'.pth'
 
         # init training and optimizer variables
         self.batch_size          = config['action']['batch_size']
@@ -36,9 +37,10 @@ class Trainer:
         self.gamma               = config['action']['scheduler']['gamma']
         self.shuffle_dataset     = config['datasets']['augmentation']['shuffle']
         self.mode                = config['action']['mode']
-        self.MLOps                = config['action']['MLOps']
+        self.MLOps               = config['action']['MLOps']
         self.train_from_scratch  = config['action']['from_scratch']
         self.num_epochs          = config['action']['num_epochs']
+        self.log_freq            = config['action']['log_freq']
         self.epoch      = 0
         self.step       = 0 
 
@@ -87,6 +89,25 @@ class Trainer:
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
             wandb.init(project="unsup-depth-estimation", config=config)
+
+            columns=["id", "image", "gt", "depth_pred", "pose", "pose_pred"]
+            self.test_table = wandb.Table(columns=columns)
+            self.row_id     = 0
+
+            wandb.watch(self.depth_model, log_freq=self.log_freq)
+            #wandb.watch(self.pose_model,  log_freq=self.log_freq)
+
+    def log_predictions(self, samples, outputs):
+
+        image      = np.transpose(samples['tgt'][0].squeeze().cpu().detach().numpy(), (1, 2, 0))
+        gt         = samples['groundtruth'][0].squeeze().cpu().detach().numpy()
+        pose_oxts  = samples['oxts'][1][0].squeeze().cpu().detach().numpy() # first ref image
+        pose_pred  = outputs[1][0][0].squeeze().cpu().detach().numpy()      # first ref image
+        depth_pred = disp_to_depth(outputs[0][0][0].squeeze().cpu().detach().numpy())
+
+        self.test_table.add_data(self.row_id, wandb.Image(image), wandb.Image(gt), wandb.Image(depth_pred), str(pose_oxts), str(pose_pred))
+        self.row_id += 1
+
 
     def create_loaders(self, random_seed, valid_split_ratio):
         dataset_size = len(self.dataset)
@@ -170,6 +191,9 @@ class Trainer:
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
             break
+
+        # log predictions table to wandb
+        wandb.log({"test_predictions" : self.test_table})
     
     @torch.no_grad()
     def validate(self):
@@ -200,7 +224,7 @@ class Trainer:
         # process batch
         for batch_indx, samples in tqdm(enumerate(self.train_loader), unit='batch',
                                         total=len(self.train_loader), desc=f"Epoch {self.epoch} BATCH"):
-
+            ind = 0
             self.model_optimizer.zero_grad()
             
             outputs, self.loss = self.process_batch(samples)
@@ -210,10 +234,14 @@ class Trainer:
             if self.MLOps:
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                         "smoothness_loss":self.loss[1]})
+                
+                if (batch_indx + 1) % self.log_freq == 0:
+                    self.log_predictions(samples, outputs)
+            
 
         self.model_lr_scheduler.step()
 
-        # validate after each epoch?
+        # validate after each epoch
         # self.validate()
 
         # save checkpoint

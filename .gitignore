@@ -8,8 +8,5 @@
 .DS_Store
 **/.DS_Store
 
-# models
-models/pretrained
-
 # wandb
 wandb
