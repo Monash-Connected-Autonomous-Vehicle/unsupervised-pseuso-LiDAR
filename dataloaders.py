@@ -2,6 +2,7 @@ import os
 import glob
 import torch
 import yaml
+from copy import deepcopy
 from itertools import islice
 from collections import deque
 
@@ -109,7 +110,7 @@ class UnSupKittiDataset(KittiDataset):
             sample['tgt']      = sample_dirs[0]
             sample['ref_imgs'] = sample_dirs[1:3]
 
-            calib_dir = sample_dirs[0][:29] 
+            calib_dir = sample_dirs[0][:29] # mac - 20
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
             sample['extrinsics'] = calib.Tx
@@ -119,7 +120,7 @@ class UnSupKittiDataset(KittiDataset):
                 oxts_dir = sample_dirs[i]
 
                 img_indx = oxts_dir[-14:-4]
-                oxts_dir = oxts_dir[0:55]
+                oxts_dir = oxts_dir[0:55] # mac - 46
                 oxts_dir = oxts_dir + '/oxts/data/' + img_indx + '.txt'
 
                 oxts_lst.append(oxts_dir)
@@ -128,12 +129,12 @@ class UnSupKittiDataset(KittiDataset):
 
             sample['groundtruth'] = sample_dirs[3]
             
-            self.samples.append(sample)
+            self.samples.append(deepcopy(sample))
 
 
 # TODO: use image transforms on velodyne points
 # to create GT.
-class UnSupFullKittiDataset(KittiDataset):
+class UnSupStackedDataset(KittiDataset):
     '''
         Assumming a base directory of 'KITTI/date/'
         the stack would be as follows:
@@ -209,5 +210,5 @@ class UnSupFullKittiDataset(KittiDataset):
 
             sample['groundtruth'] = None
 
-            self.samples.append(sample)
+            self.samples.append(deepcopy(sample))
     
