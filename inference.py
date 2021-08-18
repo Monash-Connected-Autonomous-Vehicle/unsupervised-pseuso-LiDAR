@@ -30,12 +30,19 @@ input_imgs = data['tgt'].to(trainer.device)
 ref_imgs   = [img.to(trainer.device) for img in data['ref_imgs']]
 
 # test and plot
-depth = depth_model(input_imgs*255)
+depth = depth_model(input_imgs)
 pose  = pose_model(input_imgs, ref_imgs)
 
 # figure out all outputs
-img    = data['tgt'][0].squeeze().cpu().detach().numpy()
-print(img.shape)
+img    = depth[0].squeeze().cpu().detach().numpy()
+
+print("input")
+print(input_imgs[0].shape)
+print("output")
+print(1/img[0])
+
+img = Image.fromarray(1/img[0])
+img.show()
 
 
 

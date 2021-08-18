@@ -108,14 +108,11 @@ class Trainer:
     def log_predictions(self, samples, outputs):
 
         # get samples
-        image      = np.transpose(samples['tgt'][0].squeeze().cpu().detach().numpy(), (1, 2, 0))
+        image      = np.transpose(self.unnormalize(samples['tgt'][0].squeeze()).cpu().detach().numpy(), (1, 2, 0))
         gt         = samples['groundtruth'][0].squeeze().cpu().detach().numpy()
         pose_oxts  = samples['oxts'][1][0].squeeze().cpu().detach().numpy() # first ref image
         pose_pred  = outputs[1][0][0].squeeze().cpu().detach().numpy()      # first ref image
         depth_pred = disp_to_depth(outputs[0][0][0].squeeze().cpu().detach().numpy())
-
-        # remove normalization
-        image = self.unnormalize(image)
 
         self.test_table.add_data(self.row_id, wandb.Image(image), wandb.Image(gt), wandb.Image(depth_pred), str(pose_oxts), str(pose_pred))
         self.row_id += 1
@@ -162,7 +159,7 @@ class Trainer:
         self.checkpoint = torch.load(self.save_path)
         self.depth_model.load_state_dict(self.checkpoint['dpth_mdl_state_dict'])
         self.pose_model.load_state_dict(self.checkpoint['pose_mdl_state_dict'])
-        self.model_optimizer .load_state_dict(self.checkpoint['optimizer_state_dict'])
+        self.model_optimizer.load_state_dict(self.checkpoint['optimizer_state_dict'])
         self.epoch = self.checkpoint['epoch']
         self.valid_acc = self.checkpoint['valid_acc']
 
@@ -234,7 +231,7 @@ class Trainer:
     def run_epoch(self):
 
         # process batch
-        for batch_indx, samples in tqdm(enumerate(self.train_loader), unit='batch',
+        for batch_indx, samples in tqdm(enumerate(self.train_loader), unit='images',
                                         total=len(self.train_loader), desc=f"Epoch {self.epoch} BATCH"):
             ind = 0
             self.model_optimizer.zero_grad()
