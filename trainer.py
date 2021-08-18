@@ -70,7 +70,6 @@ class Trainer:
         
         # load checkpoint
         if self.train_from_scratch:
-            print("Training from scratch..")
             self.save_chkpnt()
         else:
             self.load_chkpnt()
@@ -141,6 +140,8 @@ class Trainer:
 
             
     def save_chkpnt(self):
+        print("Training from scratch..")
+
         self.checkpoint = { 'epoch': self.epoch, 
                             'dpth_mdl_state_dict': self.depth_model.state_dict(),
                             'pose_mdl_state_dict': self.pose_model.state_dict(),
@@ -199,7 +200,6 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
-            break
 
         # log predictions table to wandb
         wandb.log({"test_predictions" : self.test_table})
