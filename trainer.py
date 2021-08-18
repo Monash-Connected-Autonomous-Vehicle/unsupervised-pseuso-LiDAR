@@ -1,3 +1,4 @@
+from torchvision.transforms.transforms import ToPILImage
 import yaml
 import importlib
 import sys
@@ -22,6 +23,7 @@ from dataloaders import UnSupKittiDataset
 from losses import Losses
 from evaluate import compute_errors
 from geometry.pose_geometry import disp_to_depth
+from utils.transforms import UnNormalize
 
 
 class Trainer:
@@ -74,8 +76,15 @@ class Trainer:
             self.load_chkpnt()
 
         # init train transforms
-        # TODO: Add composite transforms
-        transform = transforms.ToTensor()
+        # TODO: Add color jitters and research
+        # normalisation transforms
+        self.unnormalize  =  UnNormalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+
+        transform = [
+            transforms.ToTensor(),
+            transforms.Resize((384, 1280)), # packnet standard
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            ]
         
         # init dataset
         self.dataset = UnSupKittiDataset(config, transforms=transform)
@@ -94,16 +103,19 @@ class Trainer:
             self.test_table = wandb.Table(columns=columns)
             self.row_id     = 0
 
-            wandb.watch(self.depth_model, log_freq=self.log_freq)
-            #wandb.watch(self.pose_model,  log_freq=self.log_freq)
+            wandb.watch(self.pose_model,  log_freq=self.log_freq)
 
     def log_predictions(self, samples, outputs):
 
+        # get samples
         image      = np.transpose(samples['tgt'][0].squeeze().cpu().detach().numpy(), (1, 2, 0))
         gt         = samples['groundtruth'][0].squeeze().cpu().detach().numpy()
         pose_oxts  = samples['oxts'][1][0].squeeze().cpu().detach().numpy() # first ref image
         pose_pred  = outputs[1][0][0].squeeze().cpu().detach().numpy()      # first ref image
         depth_pred = disp_to_depth(outputs[0][0][0].squeeze().cpu().detach().numpy())
+
+        # remove normalization
+        image = self.unnormalize(image)
 
         self.test_table.add_data(self.row_id, wandb.Image(image), wandb.Image(gt), wandb.Image(depth_pred), str(pose_oxts), str(pose_pred))
         self.row_id += 1
@@ -168,7 +180,7 @@ class Trainer:
                 model = obj
 
         model = model()
-        if not self.train_from_scratch:
+        if self.train_from_scratch:
             model.init_weights()
         return model.to(self.device)
 
@@ -251,7 +263,6 @@ class Trainer:
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
         ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
         intrinsics = samples['intrinsics'].to(self.device)
-        extrinsics = samples['extrinsics'].to(self.device)
 
         disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
         poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)

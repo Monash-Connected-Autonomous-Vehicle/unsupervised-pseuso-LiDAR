@@ -8,7 +8,6 @@ from collections import deque
 
 import numpy as np
 from torch.utils.data import Dataset
-from torchvision import transforms, utils
 import matplotlib.pyplot as plt
 
 from PIL import Image
@@ -29,11 +28,16 @@ class KittiDataset(Dataset):
         self.transforms = transforms
         self.samples = []
 
-    def load_img(self, path):
+    def load_img(self, path, gt=False):
         img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
 
-        if transforms:
-            img = self.transforms(img)
+        for t in self.transforms[:-1]:
+            img = t(img)
+
+        # do not normalize gt depth
+        if not gt:
+            img = self.transforms[-1](img)
+
         return img.squeeze()
         
     def sliding_window(self, iterable, size):
@@ -73,10 +77,9 @@ class KittiDataset(Dataset):
         ret_sample['ref_imgs'] = imgs
 
         ret_sample['intrinsics'] = sample['intrinsics']
-        ret_sample['extrinsics'] = sample['extrinsics']
         ret_sample['oxts']       = sample['oxts']
 
-        ret_sample['groundtruth'] = self.load_img(sample['groundtruth'])
+        ret_sample['groundtruth'] = self.load_img(sample['groundtruth'], gt=True)
 
         return ret_sample
 
@@ -113,7 +116,6 @@ class UnSupKittiDataset(KittiDataset):
             calib_dir = sample_dirs[0][:29] # mac - 20
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
-            sample['extrinsics'] = calib.Tx
 
             oxts_lst = []
             for i in range(3):
@@ -151,7 +153,7 @@ class UnSupStackedDataset(KittiDataset):
     '''
 
     def __init__(self, *args, **kwargs):
-        super(UnSupFullKittiDataset, self).__init__(*args, **kwargs)
+        super(UnSupStackedDataset, self).__init__(*args, **kwargs)
         self._init_samples()
 
 
@@ -201,7 +203,6 @@ class UnSupStackedDataset(KittiDataset):
             
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = calib.P
-            sample['extrinsics'] = calib.Tx
 
             oxts_lst = [oxts_dirs[img_dirs.index(tgt_dir)],  
                        oxts_dirs[img_dirs.index(ref_img_dirs[0])],
