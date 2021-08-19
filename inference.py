@@ -1,20 +1,28 @@
+from os import sep
 from trainer import *
+from models.depth.disp_net import DispNetS
 
+from utils.transforms import UnNormalize
 
 # load checkpoint
-save_path = './pretrained/generic_sfm.pth'
+save_path = './pretrained/sfm.pth'
 checkpoint = torch.load(save_path)
 depth_model_state_dict = checkpoint['dpth_mdl_state_dict']
 pose_model_state_dict  = checkpoint['pose_mdl_state_dict']
 
 # init dataset
-with open('configs/basic_config.yaml') as file:
+with open('configs/test_config.yaml') as file:
     config = yaml.full_load(file)
 
 trainer    = Trainer(config)
 dataloader = trainer.train_loader
 data       = next(iter(dataloader))
 
+one_sample = trainer.dataset.__getitem__(0)
+img = one_sample['intrinsics'].unsqueeze(0)
+print(img.shape)
+
+'''
 # load a depth model
 depth_model = trainer.depth_model
 depth_model.load_state_dict(depth_model_state_dict)
@@ -33,19 +41,14 @@ ref_imgs   = [img.to(trainer.device) for img in data['ref_imgs']]
 depth = depth_model(input_imgs)
 pose  = pose_model(input_imgs, ref_imgs)
 
+
 # figure out all outputs
-img    = depth[0].squeeze().cpu().detach().numpy()
-
+img    = depth[0][0].squeeze().cpu().detach().numpy()
+img = 1/img
 print("input")
-print(input_imgs[0].shape)
-print("output")
-print(1/img[0])
+print(img)
 
-img = Image.fromarray(1/img[0])
-img.show()
-
-
-
-
-
+plt.imshow(img)
+plt.show()
+'''
 

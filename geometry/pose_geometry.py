@@ -73,7 +73,7 @@ def invert_pose_np(T):
     Tinv[:3, :3], Tinv[:3, 3] = R.T, - np.matmul(R.T, t)
     return Tinv
 
-def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mode='zeros'):
+def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mode='zeros', warp_test=False):
     """
     Inverse warp a source image to the target image plane.
     Args:
@@ -89,7 +89,11 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
     warper = Transform(intrinsics, None, img.shape[0], img.shape[1])
 
     K = intrinsics[..., 0:3, 0:3]
-    cam_coords = warper.project_img_to_cam(torch.squeeze(depth), K)  # [B,3,H,W]
+
+    if warp_test:
+        cam_coords = warper.project_img_to_cam(depth, K)  # [B,3,H,W]
+    else:
+        cam_coords = warper.project_img_to_cam(torch.squeeze(depth), K)  # [B,3,H,W]
 
     pose_mat = pose_vec2mat(pose, rotation_mode)  # [B,3,4]
 

@@ -1,3 +1,4 @@
+import warnings
 from torchvision.transforms.transforms import ToPILImage
 import yaml
 import importlib
@@ -21,9 +22,11 @@ from   torch.utils.data.sampler import SubsetRandomSampler
 
 from dataloaders import UnSupKittiDataset
 from losses import Losses
-from evaluate import compute_errors
-from geometry.pose_geometry import disp_to_depth
 from utils.transforms import UnNormalize
+from evaluate import compute_errors
+from geometry.pose_geometry import inverse_warp, disp_to_depth
+
+
 
 
 class Trainer:
@@ -87,6 +90,7 @@ class Trainer:
         
         # init dataset
         self.dataset = UnSupKittiDataset(config, transforms=transform)
+        self.warp_sample = self.create_warp_sample()
 
         # create a dataset splits 
         random_seed      = config['action']['random_seed']
@@ -104,6 +108,20 @@ class Trainer:
 
             wandb.watch(self.pose_model,  log_freq=self.log_freq)
 
+    def create_warp_sample(self):
+
+        item = self.dataset.__getitem__(0)
+
+        # load repeatable data
+        tgt        = item['tgt'].unsqueeze(0)
+        ref_imgs   = [img.unsqueeze(0) for img in item['ref_imgs']]
+        intrinsics = torch.from_numpy(item['intrinsics'])
+
+        sample = {'tgt': tgt,
+                'ref_imgs': ref_imgs,
+                'intrinsics': intrinsics}
+        return sample
+
     def log_predictions(self, samples, outputs):
 
         # get samples
@@ -115,7 +133,6 @@ class Trainer:
 
         self.test_table.add_data(self.row_id, wandb.Image(image), wandb.Image(gt), wandb.Image(depth_pred), str(pose_oxts), str(pose_pred))
         self.row_id += 1
-
 
     def create_loaders(self, random_seed, valid_split_ratio):
         dataset_size = len(self.dataset)
@@ -137,10 +154,9 @@ class Trainer:
         validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
                                             sampler=valid_sampler, num_workers=8)
         return train_loader, validation_loader
-
             
     def save_chkpnt(self):
-        print("Training from scratch..")
+        print("Saving checkpoint..")
 
         self.checkpoint = { 'epoch': self.epoch, 
                             'dpth_mdl_state_dict': self.depth_model.state_dict(),
@@ -183,12 +199,10 @@ class Trainer:
         return model.to(self.device)
 
     def set_train(self):
-        print('Training...')
         self.depth_model.train()
         self.pose_model.train()
 
     def set_eval(self):
-        print('Evaluating...')
         self.depth_model.eval()
         self.pose_model.eval()
 
@@ -200,6 +214,7 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
+            break
 
         # log predictions table to wandb
         wandb.log({"test_predictions" : self.test_table})
@@ -226,19 +241,43 @@ class Trainer:
             # compare againt checkpoint
             # if abs_rel > self.valid_acc:
             #     self.valid_acc = abs_rel
-            
-                
+    
+    @torch.no_grad()
+    def log_warps(self, indx):
+        self.set_eval()
+
+        # pass through model
+        outputs = self.process_batch(self.warp_sample, warp_test=True)
+        depth   = disp_to_depth(outputs[0][0].squeeze().unsqueeze(0))
+
+        poses   = outputs[1]
+        poses   = poses[:, 0, :]
+
+        ref_imgs   = self.warp_sample['ref_imgs'][0].to(self.device)
+        intrinsics = self.warp_sample['intrinsics'].to(self.device)
+
+        # create warp
+        projected_img = inverse_warp(ref_imgs, depth, poses, intrinsics, warp_test=True)
+        projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
+        projected_img = 0.5 + (projected_img * 0.5) # remove normalization
+
+        file_name = './images/warping/' + str(indx) + '.png'
+        plt.imsave(file_name, projected_img)
+
+        self.set_train()
+
     def run_epoch(self):
 
         # process batch
         for batch_indx, samples in tqdm(enumerate(self.train_loader), unit='images',
                                         total=len(self.train_loader), desc=f"Epoch {self.epoch} BATCH"):
-            ind = 0
+
             self.model_optimizer.zero_grad()
             
             outputs, self.loss = self.process_batch(samples)
             sum(self.loss).backward()
             self.model_optimizer.step()   
+
 
             if self.MLOps:
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
@@ -246,6 +285,7 @@ class Trainer:
                 
                 if (batch_indx + 1) % self.log_freq == 0:
                     self.log_predictions(samples, outputs)
+                    self.log_warps(batch_indx)
             
 
         self.model_lr_scheduler.step()
@@ -256,7 +296,7 @@ class Trainer:
         # save checkpoint
         self.save_chkpnt()
 
-    def process_batch(self, samples):
+    def process_batch(self, samples, warp_test=False):
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
         ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
         intrinsics = samples['intrinsics'].to(self.device)
@@ -264,7 +304,9 @@ class Trainer:
         disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
         poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
 
-        # forward + backward + optimize
-        loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics)
-        
-        return [disp, poses], loss
+        if warp_test:
+            return [disp, poses]
+        else:
+            # forward + backward 
+            loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics)
+            return [disp, poses], loss
