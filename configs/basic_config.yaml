@@ -12,8 +12,8 @@ datasets:
     path: '../KITTI/'
     split: './splits/kitti_depth_annotated_train_files.txt'
     augmentation:
-        image_width: 1242
-        image_height: 375
+        image_width: 1280
+        image_height: 384
         shuffle: True
     sequence_length: 3
     dataset: ['KITTI']
@@ -25,7 +25,7 @@ action:
     split: [0.8, 0.2]
     random_seed : 42
     batch_size: 4
-    num_epochs: 3
+    num_epochs: 4
     optimizer:
         name: 'Adam'
         depth:

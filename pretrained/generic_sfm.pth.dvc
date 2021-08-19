@@ -1,4 +1,4 @@
 outs:
-- md5: a690fc25091d6f1336dc37387f6ca6c7
+- md5: 3be5fd12c440b477176da6c5b9033e04
   size: 398363913
   path: generic_sfm.pth

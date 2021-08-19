@@ -214,7 +214,6 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
-            break
 
         # log predictions table to wandb
         wandb.log({"test_predictions" : self.test_table})
@@ -282,10 +281,14 @@ class Trainer:
             if self.MLOps:
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                         "smoothness_loss":self.loss[1]})
+
+                if self.epoch < 1:
+                    self.log_warps(batch_indx)
+
                 
                 if (batch_indx + 1) % self.log_freq == 0:
                     self.log_predictions(samples, outputs)
-                    self.log_warps(batch_indx)
+                    
             
 
         self.model_lr_scheduler.step()
