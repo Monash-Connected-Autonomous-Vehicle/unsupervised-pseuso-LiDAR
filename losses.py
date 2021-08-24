@@ -58,17 +58,17 @@ class Losses:
     def __init__(self):
         self.SSIM = SSIM()
 
-    def compute_reprojection_loss(self, pred, target, no_ssim=False):
+    def compute_photometric_loss(self, pred, target, no_ssim=False):
         """Computes reprojection loss between a batch of predicted and target images
         """
-        abs_diff = torch.abs(target - pred)
-        l1_loss = abs_diff.mean(1, True).squeeze().mean(-1).mean(-1) # pytorch multidim reduce issue
+        l1_loss = torch.abs(target - pred)
+        # l1_loss  = abs_diff.mean(1, True).squeeze().mean(-1).mean(-1) # pytorch multidim reduce issue
 
         if no_ssim:
-            reprojection_loss = l1_loss
+            photometric_loss = l1_loss
         else:
-            ssim_loss = self.SSIM.standard(pred, target).mean(1, True).squeeze().mean(-1).mean(-1)
-            reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
+            ssim_loss = self.SSIM.standard(pred, target)
+            photometric_loss = 0.85 * ssim_loss + 0.15 * l1_loss
 
         # Clip loss
         # if 1 > 0.0:
@@ -78,9 +78,9 @@ class Losses:
                 # photometric_loss[i] = torch.clamp(
                 #     photometric_loss[i], max=float(mean + self.clip_loss * std))
 
-        return reprojection_loss
+        return photometric_loss
 
-    def multiview_appearence_matching(self, tgt_img, ref_imgs, depth, poses, intrinsics, mode='min'):
+    def multiview_reprojection_loss(self, tgt_img, ref_imgs, depth, poses, intrinsics, mode='min'):
         '''
         This is the multiview photometric loss that
         uses SSIM appearance matching.
@@ -88,23 +88,37 @@ class Losses:
         mode: mean / min
         '''
 
+        def reduce_loss(tensor):
+            return tensor.mean(1, True).squeeze().mean(-1).mean(-1)
+
+
         # split poses
         poses_t_0 = poses[:, 0, :]
         poses_t_2 = poses[:, 1, :]
+        poses     = [poses_t_0, poses_t_2] 
         
-        # do an inverse warp
-        projected_img_t_0 = inverse_warp(ref_imgs[0], depth, poses_t_0, intrinsics)
-        projected_img_t_2 = inverse_warp(ref_imgs[1], depth, poses_t_2, intrinsics)
+        # inverse warp from 
+        projected_imgs = [inverse_warp(ref_img, depth, pose, intrinsics) for ref_img, pose in zip(ref_imgs, poses)]
 
-        diff_1  = self.compute_reprojection_loss(projected_img_t_0, tgt_img)
-        diff_2  = self.compute_reprojection_loss(projected_img_t_2, tgt_img)
+        # reprojection between projected and target
+        reprojection_losses = [self.compute_photometric_loss(proj_img, tgt_img) for proj_img in projected_imgs]
 
-        if mode == 'mean':
-            return (diff_1.mean() + diff_2.mean())/2
+        # reprojection between reference and target
+        automasking_loss = [self.compute_photometric_loss(ref_img, tgt_img) for ref_img in ref_imgs]
+
         if mode == 'min':
             # element-wise minimum
-            min_rpl = torch.minimum(diff_1, diff_2)
-            return min_rpl.mean()
+            min_rpl      = torch.minimum(reprojection_losses[0], reprojection_losses[1])
+            min_automask_loss = torch.minimum(automasking_loss[0], automasking_loss[1])
+            
+            # binary automask
+            mu = torch.where(min_rpl < min_automask_loss, torch.tensor([1.]).cuda(), torch.tensor([0.]).cuda())
+            
+            batch_multiview_loss = reduce_loss(mu * min_rpl)
+            
+            return batch_multiview_loss.mean()
+        else:
+            assert("different losses not implmented")
 
     def smooth_loss(self, pred_map):
         def gradient(pred):
@@ -136,7 +150,7 @@ class Losses:
         # torch.Size([4, 1, 47, 156])
         depth = disp_to_depth(disparity[0])
 
-        loss_mam    = self.multiview_appearence_matching(tgt_img, ref_imgs, depth, poses, intrinsics, mode='min')
+        loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='min')
         loss_smooth = self.smooth_loss(depth)
 
         return [loss_mam, loss_smooth]

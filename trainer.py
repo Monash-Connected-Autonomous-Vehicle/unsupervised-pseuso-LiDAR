@@ -215,9 +215,10 @@ class Trainer:
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
             break
-
-        # log predictions table to wandb
-        wandb.log({"test_predictions" : self.test_table})
+        
+        if self.MLOps:
+            # log predictions table to wandb
+            wandb.log({"test_predictions" : self.test_table})
     
     @torch.no_grad()
     def validate(self):
@@ -237,6 +238,7 @@ class Trainer:
             
             if self.MLOps:
                 wandb.log(acc, step=self.epoch)
+            
 
             # compare againt checkpoint
             # if abs_rel > self.valid_acc:
@@ -276,15 +278,14 @@ class Trainer:
             
             outputs, self.loss = self.process_batch(samples)
             sum(self.loss).backward()
-            self.model_optimizer.step()   
-
+            self.model_optimizer.step() 
 
             if self.MLOps:
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                         "smoothness_loss":self.loss[1]})
 
-                if self.epoch < 1:
-                    self.log_warps(batch_indx)
+                # if self.epoch < 1:
+                    # self.log_warps(batch_indx)
 
                 
                 if (batch_indx + 1) % self.log_freq == 0:
