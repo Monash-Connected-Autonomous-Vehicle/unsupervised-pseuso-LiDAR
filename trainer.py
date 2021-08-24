@@ -214,6 +214,7 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
+            break
 
         # log predictions table to wandb
         wandb.log({"test_predictions" : self.test_table})
