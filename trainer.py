@@ -277,7 +277,7 @@ class Trainer:
             self.model_optimizer.zero_grad()
             
             outputs, self.loss = self.process_batch(samples)
-            sum(self.loss).backward()
+            #sum(self.loss).backward()
             self.model_optimizer.step() 
 
             if self.MLOps:
@@ -290,6 +290,8 @@ class Trainer:
                 
                 if (batch_indx + 1) % self.log_freq == 0:
                     self.log_predictions(samples, outputs)
+            
+            break
                     
             
 

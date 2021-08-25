@@ -2,8 +2,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+import cv2
 
 from geometry.pose_geometry import inverse_warp, disp_to_depth
+from utils.transforms import UnNormalize
 
 # TODO:
 #  1. Add velocity supervision loss
@@ -57,6 +60,8 @@ class Losses:
 
     def __init__(self):
         self.SSIM = SSIM()
+        self.unnormalize  =  UnNormalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        self.clip_loss = 0.5
 
     def compute_photometric_loss(self, pred, target, no_ssim=False):
         """Computes reprojection loss between a batch of predicted and target images
@@ -71,12 +76,9 @@ class Losses:
             photometric_loss = 0.85 * ssim_loss + 0.15 * l1_loss
 
         # Clip loss
-        # if 1 > 0.0:
-        #     for i in range(reprojection_loss.shape):
-        #         print(i)
-                # mean, std = photometric_loss[i].mean(), photometric_loss[i].std()
-                # photometric_loss[i] = torch.clamp(
-                #     photometric_loss[i], max=float(mean + self.clip_loss * std))
+        mean, std = photometric_loss.mean(), photometric_loss.std()
+        photometric_loss = torch.clamp(
+            photometric_loss, max=float(mean + self.clip_loss * std))
 
         return photometric_loss
 
@@ -89,7 +91,19 @@ class Losses:
         '''
 
         def reduce_loss(tensor):
-            return tensor.mean(1, True).squeeze().mean(-1).mean(-1)
+            tensor, _ = torch.max(tensor, dim=1)
+            return tensor.mean(1).mean(-1)
+
+        @torch.no_grad()
+        def plot_mask(mu, min_rpl):
+            img  = np.transpose(self.unnormalize(tgt_img[0].squeeze()).cpu().detach().numpy(), (1, 2, 0))
+            refs = [np.transpose(self.unnormalize(img[0].squeeze()).cpu().detach().numpy(), (1, 2, 0)) for img in ref_imgs]
+            mu   = np.transpose(mu[0].squeeze().cpu().detach().numpy(), (1, 2, 0))
+            min_rpl = np.transpose(min_rpl[0].squeeze().cpu().detach().numpy(), (1, 2, 0)) 
+            
+            arr = np.max(mu * min_rpl, axis=2)
+            plt.imsave('sick_phuto.png', min_rpl)
+
 
 
         # split poses
@@ -113,9 +127,11 @@ class Losses:
             
             # binary automask
             mu = torch.where(min_rpl < min_automask_loss, torch.tensor([1.]).cuda(), torch.tensor([0.]).cuda())
-            
-            batch_multiview_loss = reduce_loss(mu * min_rpl)
-            
+    
+            # plot_mask(mu, min_rpl)
+      
+            batch_multiview_loss = reduce_loss(min_rpl) # mu * min_rpl for mask
+
             return batch_multiview_loss.mean()
         else:
             assert("different losses not implmented")
