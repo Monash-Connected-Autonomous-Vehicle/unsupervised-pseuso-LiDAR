@@ -60,6 +60,8 @@ class Losses:
 
     def __init__(self):
         self.SSIM = SSIM()
+        self.L2   = nn.MSELoss()
+
         self.unnormalize  =  UnNormalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         self.clip_loss = 0.5
 
@@ -102,7 +104,9 @@ class Losses:
             min_rpl = np.transpose(min_rpl[0].squeeze().cpu().detach().numpy(), (1, 2, 0)) 
             
             arr = np.max(mu * min_rpl, axis=2)
-            plt.imsave('sick_phuto.png', min_rpl)
+
+            plt.imshow(arr)
+            plt.show()
 
 
 
@@ -133,6 +137,11 @@ class Losses:
             batch_multiview_loss = reduce_loss(min_rpl) # mu * min_rpl for mask
 
             return batch_multiview_loss.mean()
+        elif mode == 'MSE':
+            mse_loss  = self.L2(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+            mse_loss += self.L2(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+            return mse_loss
+
         else:
             assert("different losses not implmented")
 
@@ -156,7 +165,7 @@ class Losses:
             weight /= 2.3  # don't ask me why it works better
         return loss
 
-    def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics):
+    def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics, gt):
         
         # project dept to 3D
         # depth content size are as follows
@@ -166,9 +175,8 @@ class Losses:
         # torch.Size([4, 1, 47, 156])
         depth = disp_to_depth(disparity[0])
 
-        loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='min')
+        loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='MSE')
         loss_smooth = self.smooth_loss(depth)
-
         return [loss_mam, loss_smooth]
 
     

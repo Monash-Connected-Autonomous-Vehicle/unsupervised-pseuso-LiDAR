@@ -1,5 +1,5 @@
 model:
-    name: 'gsfm'
+    name: 'sfm'
     depth:
         name: 'DispNetS'
         file: 'disp_net'
@@ -19,7 +19,7 @@ datasets:
     dataset: ['KITTI']
 action:
     mode : 'train'
-    MLOps: False
+    MLOps: True
     log_freq: 100
     from_scratch : True
     split: [0.8, 0.2]

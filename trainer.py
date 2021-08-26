@@ -277,10 +277,11 @@ class Trainer:
             self.model_optimizer.zero_grad()
             
             outputs, self.loss = self.process_batch(samples)
-            #sum(self.loss).backward()
+            sum(self.loss).backward()
             self.model_optimizer.step() 
 
             if self.MLOps:
+
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                         "smoothness_loss":self.loss[1]})
 
@@ -290,9 +291,6 @@ class Trainer:
                 
                 if (batch_indx + 1) % self.log_freq == 0:
                     self.log_predictions(samples, outputs)
-            
-            break
-                    
             
 
         self.model_lr_scheduler.step()
@@ -307,6 +305,7 @@ class Trainer:
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
         ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
         intrinsics = samples['intrinsics'].to(self.device)
+        gt         = samples['groundtruth'].to(self.device)
 
         disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
         poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
@@ -315,5 +314,5 @@ class Trainer:
             return [disp, poses]
         else:
             # forward + backward 
-            loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics)
+            loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
             return [disp, poses], loss
