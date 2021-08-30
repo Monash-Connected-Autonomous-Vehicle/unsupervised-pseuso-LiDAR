@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 
 import torch
-from   torch.utils.data import Dataset
+from   torch.utils.data import Dataset, Sampler
 from   torchvision import transforms, utils
 import torch.nn.functional as F
 import torch.optim as optim
@@ -27,7 +27,15 @@ from evaluate import compute_errors
 from geometry.pose_geometry import inverse_warp, disp_to_depth
 
 
+class SequentialIndicesSampler(Sampler):
+    def __init__(self, indices):
+        self.indices = indices
 
+    def __iter__(self):
+        return iter(self.indices)
+
+    def __len__(self):
+        return len(self.indices)
 
 class Trainer:
     def __init__(self, config):
@@ -90,7 +98,6 @@ class Trainer:
         
         # init dataset
         self.dataset = UnSupKittiDataset(config, transforms=transform)
-        self.warp_sample = self.create_warp_sample()
 
         # create a dataset splits 
         random_seed      = config['action']['random_seed']
@@ -100,6 +107,11 @@ class Trainer:
 
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
+
+            # sample to test warp
+            self.warp_sample = self.create_warp_sample()
+
+            # weights and biases init
             wandb.init(project="unsup-depth-estimation", config=config)
 
             columns=["id", "image", "gt", "depth_pred", "pose", "pose_pred"]
@@ -108,53 +120,6 @@ class Trainer:
 
             wandb.watch(self.pose_model,  log_freq=self.log_freq)
 
-    def create_warp_sample(self):
-
-        item = self.dataset.__getitem__(0)
-
-        # load repeatable data
-        tgt        = item['tgt'].unsqueeze(0)
-        ref_imgs   = [img.unsqueeze(0) for img in item['ref_imgs']]
-        intrinsics = torch.from_numpy(item['intrinsics'])
-
-        sample = {'tgt': tgt,
-                'ref_imgs': ref_imgs,
-                'intrinsics': intrinsics}
-        return sample
-
-    def log_predictions(self, samples, outputs):
-
-        # get samples
-        image      = np.transpose(self.unnormalize(samples['tgt'][0].squeeze()).cpu().detach().numpy(), (1, 2, 0))
-        gt         = samples['groundtruth'][0].squeeze().cpu().detach().numpy()
-        pose_oxts  = samples['oxts'][1][0].squeeze().cpu().detach().numpy() # first ref image
-        pose_pred  = outputs[1][0][0].squeeze().cpu().detach().numpy()      # first ref image
-        depth_pred = disp_to_depth(outputs[0][0][0].squeeze().cpu().detach().numpy())
-
-        self.test_table.add_data(self.row_id, wandb.Image(image), wandb.Image(gt), wandb.Image(depth_pred), str(pose_oxts), str(pose_pred))
-        self.row_id += 1
-
-    def create_loaders(self, random_seed, valid_split_ratio):
-        dataset_size = len(self.dataset)
-        indices      = list(range(dataset_size))
-        split    = int(np.floor(valid_split_ratio * dataset_size))
-
-        if self.shuffle_dataset :
-            np.random.seed(random_seed)
-            np.random.shuffle(indices)
-
-        train_indices, val_indices  = indices[split:], indices[:split]
-
-        # Creating PT data samplers and loaders:
-        train_sampler = SubsetRandomSampler(train_indices)
-        valid_sampler = SubsetRandomSampler(val_indices)
-
-        train_loader      = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
-                                           sampler=train_sampler, num_workers=16)
-        validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
-                                            sampler=valid_sampler, num_workers=8)
-        return train_loader, validation_loader
-            
     def save_chkpnt(self):
         print("Saving checkpoint..")
 
@@ -197,6 +162,27 @@ class Trainer:
         if self.train_from_scratch:
             model.init_weights()
         return model.to(self.device)
+    
+    def create_loaders(self, random_seed, valid_split_ratio):
+        dataset_size = len(self.dataset)
+        indices      = list(range(dataset_size))
+        split    = int(np.floor(valid_split_ratio * dataset_size))
+
+        if self.shuffle_dataset :
+            np.random.seed(random_seed)
+            np.random.shuffle(indices)
+
+        train_indices, val_indices  = indices[split:], indices[:split]
+
+        # Creating PT data samplers and loaders:
+        train_sampler = SequentialIndicesSampler(train_indices)
+        valid_sampler = SequentialIndicesSampler(val_indices)
+
+        train_loader      = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
+                                           sampler=train_sampler, num_workers=16)
+        validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
+                                            sampler=valid_sampler, num_workers=8)
+        return train_loader, validation_loader
 
     def set_train(self):
         self.depth_model.train()
@@ -206,43 +192,31 @@ class Trainer:
         self.depth_model.eval()
         self.pose_model.eval()
 
-    def train(self):
+    def create_warp_sample(self):
 
-        self.set_train()
-        self.start_time = time.time()
+        item = self.dataset.__getitem__(0)
 
-        # run epoch
-        for self.epoch in range(self.num_epochs):
-            self.run_epoch()
-            break
-        
-        if self.MLOps:
-            # log predictions table to wandb
-            wandb.log({"test_predictions" : self.test_table})
-    
-    @torch.no_grad()
-    def validate(self):
+        # load repeatable data
+        tgt        = item['tgt'].unsqueeze(0)
+        ref_imgs   = [img.unsqueeze(0) for img in item['ref_imgs']]
+        intrinsics = torch.from_numpy(item['intrinsics'])
 
-        self.set_eval()
+        sample = {'tgt': tgt,
+                'ref_imgs': ref_imgs,
+                'intrinsics': intrinsics}
+        return sample
 
-        # calculate evaluation accuracy
-        # with torch.no_grad():
-        for batch_indx, samples in enumerate(self.validation_loader):
-            outputs, self.loss = self.process_batch(samples)
-            
-            # calculate the accuracy
-            gt = samples['groundtruth']
+    def log_predictions(self, samples, outputs):
 
-            # compute_error
-            acc = compute_errors(gt, outputs[0])
-            
-            if self.MLOps:
-                wandb.log(acc, step=self.epoch)
-            
+        # get samples
+        image      = np.transpose(self.unnormalize(samples['tgt'][0].squeeze()).cpu().detach().numpy(), (1, 2, 0))
+        gt         = samples['groundtruth'][0].squeeze().cpu().detach().numpy()
+        pose_oxts  = samples['oxts'][1][0].squeeze().cpu().detach().numpy() # first ref image
+        pose_pred  = outputs[1][0][0].squeeze().cpu().detach().numpy()      # first ref image
+        depth_pred = disp_to_depth(outputs[0][0][0].squeeze().cpu().detach().numpy())
 
-            # compare againt checkpoint
-            # if abs_rel > self.valid_acc:
-            #     self.valid_acc = abs_rel
+        self.test_table.add_data(self.row_id, wandb.Image(image), wandb.Image(gt), wandb.Image(depth_pred), str(pose_oxts), str(pose_pred))
+        self.row_id += 1
     
     @torch.no_grad()
     def log_warps(self, indx):
@@ -267,6 +241,20 @@ class Trainer:
         plt.imsave(file_name, projected_img)
 
         self.set_train()
+
+    def train(self):
+
+        self.set_train()
+        self.start_time = time.time()
+
+        # run epoch
+        for self.epoch in range(self.num_epochs):
+            self.run_epoch()
+            break
+        
+        if self.MLOps:
+            # log predictions table to wandb
+            wandb.log({"test_predictions" : self.test_table})
 
     def run_epoch(self):
 
@@ -316,3 +304,27 @@ class Trainer:
             # forward + backward 
             loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
             return [disp, poses], loss
+    
+    @torch.no_grad()
+    def validate(self):
+
+        self.set_eval()
+
+        # calculate evaluation accuracy
+        # with torch.no_grad():
+        for batch_indx, samples in enumerate(self.validation_loader):
+            outputs, self.loss = self.process_batch(samples)
+            
+            # calculate the accuracy
+            gt = samples['groundtruth']
+
+            # compute_error
+            acc = compute_errors(gt, outputs[0])
+            
+            if self.MLOps:
+                wandb.log(acc, step=self.epoch)
+            
+
+            # compare againt checkpoint
+            # if abs_rel > self.valid_acc:
+            #     self.valid_acc = abs_rel

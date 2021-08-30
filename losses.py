@@ -8,12 +8,8 @@ import cv2
 from geometry.pose_geometry import inverse_warp, disp_to_depth
 from utils.transforms import UnNormalize
 
-# TODO:
-#  1. Add velocity supervision loss
-
 class SSIM:
-
-    def standard(self, x, y, C1=1e-4, C2=9e-4, kernel_size=3, stride=1):
+    def standard_loss(self, x, y, C1=1e-4, C2=9e-4, kernel_size=3, stride=1):
         """
         Structural SIMilarity (SSIM) distance between two images.
         Parameters
@@ -74,7 +70,7 @@ class Losses:
         if no_ssim:
             photometric_loss = l1_loss
         else:
-            ssim_loss = self.SSIM.standard(pred, target)
+            ssim_loss = self.SSIM.standard_loss(pred, target)
             photometric_loss = 0.85 * ssim_loss + 0.15 * l1_loss
 
         # Clip loss
@@ -108,8 +104,6 @@ class Losses:
             plt.imshow(arr)
             plt.show()
 
-
-
         # split poses
         poses_t_0 = poses[:, 0, :]
         poses_t_2 = poses[:, 1, :]
@@ -131,7 +125,8 @@ class Losses:
             
             # binary automask
             mu = torch.where(min_rpl < min_automask_loss, torch.tensor([1.]).cuda(), torch.tensor([0.]).cuda())
-    
+
+            # visualise mask
             # plot_mask(mu, min_rpl)
       
             batch_multiview_loss = reduce_loss(min_rpl) # mu * min_rpl for mask
@@ -141,7 +136,6 @@ class Losses:
             mse_loss  = self.L2(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
             mse_loss += self.L2(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
             return mse_loss
-
         else:
             assert("different losses not implmented")
 
@@ -168,11 +162,6 @@ class Losses:
     def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics, gt):
         
         # project dept to 3D
-        # depth content size are as follows
-        # torch.Size([4, 1, 375, 1242])
-        # torch.Size([4, 1, 188, 621])
-        # torch.Size([4, 1, 94, 311])
-        # torch.Size([4, 1, 47, 156])
         depth = disp_to_depth(disparity[0])
 
         loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='MSE')
