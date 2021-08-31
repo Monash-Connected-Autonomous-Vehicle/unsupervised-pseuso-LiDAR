@@ -114,7 +114,7 @@ class Trainer:
             # weights and biases init
             wandb.init(project="unsup-depth-estimation", config=config)
 
-            columns=["id", "image", "gt", "depth_pred", "pose", "pose_pred"]
+            columns=["id", "image", "gt", "depth_pred"]
             self.test_table = wandb.Table(columns=columns)
             self.row_id     = 0
 
@@ -206,18 +206,16 @@ class Trainer:
                 'intrinsics': intrinsics}
         return sample
 
-    def log_predictions(self, samples, outputs):
+    def log_depth_predictions(self, samples, outputs):
 
         # get samples
         image      = np.transpose(self.unnormalize(samples['tgt'][0].squeeze()).cpu().detach().numpy(), (1, 2, 0))
         gt         = samples['groundtruth'][0].squeeze().cpu().detach().numpy()
-        pose_oxts  = samples['oxts'][1][0].squeeze().cpu().detach().numpy() # first ref image
-        pose_pred  = outputs[1][0][0].squeeze().cpu().detach().numpy()      # first ref image
         depth_pred = disp_to_depth(outputs[0][0][0].squeeze().cpu().detach().numpy())
 
-        self.test_table.add_data(self.row_id, wandb.Image(image), wandb.Image(gt), wandb.Image(depth_pred), str(pose_oxts), str(pose_pred))
+        self.test_table.add_data(self.row_id, wandb.Image(image), wandb.Image(gt), wandb.Image(depth_pred))
         self.row_id += 1
-    
+
     @torch.no_grad()
     def log_warps(self, indx):
         self.set_eval()
@@ -278,7 +276,7 @@ class Trainer:
 
                 
                 if (batch_indx + 1) % self.log_freq == 0:
-                    self.log_predictions(samples, outputs)
+                    self.log_depth_predictions(samples, outputs)
             
 
         self.model_lr_scheduler.step()
