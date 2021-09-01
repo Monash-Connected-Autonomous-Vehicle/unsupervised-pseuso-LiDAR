@@ -1,15 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.init import xavier_uniform_, zeros_
+from torch.nn.init import kaiming_normal_, zeros_, constant_
 import sys
 
 
 def downsample_conv(in_planes, out_planes, kernel_size=3):
     return nn.Sequential(
         nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=2, padding=(kernel_size-1)//2),
+        nn.GroupNorm(16, out_planes),
         nn.ReLU(inplace=True),
         nn.Conv2d(out_planes, out_planes, kernel_size=kernel_size, padding=(kernel_size-1)//2),
+        nn.GroupNorm(16, out_planes),
         nn.ReLU(inplace=True)
     )
 
@@ -22,11 +24,14 @@ def predict_disp(in_planes):
 def upconv(in_planes, out_planes):
     return nn.Sequential(
         nn.ConvTranspose2d(in_planes, out_planes, kernel_size=3, stride=2, padding=1, output_padding=1),
+        nn.GroupNorm(16, out_planes),
         nn.ReLU(inplace=True)
     )
 
 '''
-TODO: test nn.GroupNorm
+TODO: 
+    1. Skip connections
+    2. 
 '''
 class StnDispNet(nn.Module):
     '''
@@ -83,16 +88,20 @@ class StnDispNet(nn.Module):
         return x
     
     def init_weights(self):
-        
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+                kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+                if m.bias is not None:
+                    zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                constant_(m.weight, 1)
+                constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                constant_(m.bias, 0)
+
         # Initialize the weights/bias with identity transformation
         self.fc_loc[6].weight.data.zero_()
         self.fc_loc[6].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
-        
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                kaiming_normal_(m.weigh, mode='fan_in', nonlinearity='relu')
-                if m.bias is not None:
-                    zeros_(m.bias)
 
     def forward(self, x):
         # transform the input
@@ -110,4 +119,4 @@ class StnDispNet(nn.Module):
         
         out = self.predict(out)
 
-        return out
+        return [out]

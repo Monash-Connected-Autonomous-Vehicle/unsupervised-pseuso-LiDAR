@@ -1,8 +1,8 @@
 model:
     name: 'sfm'
     depth:
-        name: 'DispNetS'
-        file: 'disp_net'
+        name: 'StnDispNet'
+        file: 'stn_depth_net'
         version: '1'
     pose:
         name: 'PoseNet'

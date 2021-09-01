@@ -91,7 +91,7 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
     K = intrinsics[..., 0:3, 0:3]
 
     if warp_test:
-        cam_coords = warper.project_img_to_cam(depth, K)  # [B,3,H,W]
+        cam_coords = warper.project_img_to_cam(depth, K)  # [B,1,H,W]
     else:
         cam_coords = warper.project_img_to_cam(torch.squeeze(depth), K)  # [B,3,H,W]
 

@@ -92,7 +92,6 @@ class Losses:
             tensor, _ = torch.max(tensor, dim=1)
             return tensor.mean(1).mean(-1)
 
-        @torch.no_grad()
         def plot_mask(mu, min_rpl):
             img  = np.transpose(self.unnormalize(tgt_img[0].squeeze()).cpu().detach().numpy(), (1, 2, 0))
             refs = [np.transpose(self.unnormalize(img[0].squeeze()).cpu().detach().numpy(), (1, 2, 0)) for img in ref_imgs]
@@ -132,10 +131,10 @@ class Losses:
             batch_multiview_loss = reduce_loss(min_rpl) # mu * min_rpl for mask
 
             return batch_multiview_loss.mean()
-        elif mode == 'MSE':
+        elif mode == 'mse':
             mse_loss  = self.L2(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
             mse_loss += self.L2(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
-            return mse_loss
+            return mse_loss / 2.0
         else:
             assert("different losses not implmented")
 
@@ -164,7 +163,7 @@ class Losses:
         # project dept to 3D
         depth = disp_to_depth(disparity[0])
 
-        loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='MSE')
+        loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='mse')
         loss_smooth = self.smooth_loss(depth)
         return [loss_mam, loss_smooth]
 
