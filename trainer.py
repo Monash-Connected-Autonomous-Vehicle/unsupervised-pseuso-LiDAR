@@ -67,12 +67,12 @@ class Trainer:
 
         # init model, weigths, and params
         # TODO: Check if this works
-        self.parameters_train  = list(self.depth_model.parameters())
-        self.parameters_train += list(self.pose_model.parameters())
+        parameters_train  = list(self.depth_model.parameters())
+        parameters_train += list(self.pose_model.parameters())
 
         # init optimiser and LR shcheduler
-        self.model_optimizer = optim.Adam(self.parameters_train, self.learning_rate)
-        self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
+        self.model_optimizer = optim.Adam(parameters_train, self.learning_rate)
+        # self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
 
         # init losses and acc.
         self.criterion = Losses()
@@ -194,16 +194,19 @@ class Trainer:
 
     def create_warp_sample(self):
 
-        item = self.dataset.__getitem__(0)
+        item = self.dataset.__getitem__(100)
 
         # load repeatable data
         tgt        = item['tgt'].unsqueeze(0)
         ref_imgs   = [img.unsqueeze(0) for img in item['ref_imgs']]
         intrinsics = torch.from_numpy(item['intrinsics'])
+        gt         = item['groundtruth']
 
         sample = {'tgt': tgt,
                 'ref_imgs': ref_imgs,
-                'intrinsics': intrinsics}
+                'intrinsics': intrinsics,
+                'groundtruth': gt}
+                
         return sample
 
     def log_depth_predictions(self, samples, outputs):
@@ -248,7 +251,6 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
-            break
         
         if self.MLOps:
             # log predictions table to wandb
@@ -271,15 +273,15 @@ class Trainer:
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                         "smoothness_loss":self.loss[1]})
 
-                # if self.epoch < 1:
-                    # self.log_warps(batch_indx)
+                if self.epoch < 1 and (batch_indx + 1) < 100:
+                    self.log_warps(batch_indx)
 
                 
                 if (batch_indx + 1) % self.log_freq == 0:
                     self.log_depth_predictions(samples, outputs)
             
 
-        self.model_lr_scheduler.step()
+        # self.model_lr_scheduler.step()
 
         # validate after each epoch
         # self.validate()

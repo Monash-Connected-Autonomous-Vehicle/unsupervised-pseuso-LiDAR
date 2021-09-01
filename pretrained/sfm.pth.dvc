@@ -1,0 +1,4 @@
+outs:
+- md5: 84183bee9f661ca328d7e7edafd329b4
+  size: 279188605
+  path: sfm.pth
