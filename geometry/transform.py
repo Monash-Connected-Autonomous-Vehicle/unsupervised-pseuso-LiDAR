@@ -19,7 +19,7 @@ class Transform():
 
     def set_id_grid(self, depth):
         
-        b, h, w = depth.size()
+        b, _,h, w = depth.size()
         i_range = torch.arange(0, h).view(1, h, 1).expand(1, h, w).type_as(depth)  # [1, H, W]
         j_range = torch.arange(0, w).view(1, 1, w).expand(1, h, w).type_as(depth)  # [1, H, W]
         ones = torch.ones(1, h, w).type_as(depth)
@@ -58,8 +58,7 @@ class Transform():
         Returns:
             array of (u,v,1) cam coordinates -- [B, 3, H, W]
         """
-
-        b, h, w = depth.size()
+        b, _,  h, w = depth.size()
 
         if (self.pixel_coords is None) or self.pixel_coords.size(2) < h:
             self.pixel_coords = self.set_id_grid(depth)
@@ -70,5 +69,5 @@ class Transform():
         K_inv = K.inverse()
 
         cam_coords = (K_inv @ current_pixel_coords).reshape(b, 3, h, w)
-        return cam_coords * depth.unsqueeze(1)
+        return cam_coords * depth
     

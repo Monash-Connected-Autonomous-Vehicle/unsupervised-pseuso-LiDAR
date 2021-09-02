@@ -76,7 +76,7 @@ class KittiDataset(Dataset):
             imgs.append(self.load_img(img))
         ret_sample['ref_imgs'] = imgs
 
-        ret_sample['intrinsics'] = sample['intrinsics']
+        ret_sample['intrinsics'] = torch.tensor(sample['intrinsics'])
         ret_sample['oxts']       = sample['oxts']
 
         ret_sample['groundtruth'] = self.load_img(sample['groundtruth'], gt=True)
