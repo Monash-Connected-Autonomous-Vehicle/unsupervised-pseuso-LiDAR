@@ -24,7 +24,7 @@ from dataloaders import UnSupKittiDataset
 from losses import Losses
 from utils.transforms import UnNormalize
 from evaluate import compute_errors
-from geometry.pose_geometry import inverse_warp, disp_to_depth
+from geometry.pose_geometry import *
 
 
 class SequentialIndicesSampler(Sampler):
@@ -105,11 +105,12 @@ class Trainer:
 
         self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
 
+        # sample to test warp
+        # self.warp_sample = self.create_warp_sample()
+
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
 
-            # sample to test warp
-            self.warp_sample = self.create_warp_sample()
 
             # weights and biases init
             wandb.init(project="unsup-depth-estimation", config=config)
@@ -201,11 +202,13 @@ class Trainer:
         ref_imgs   = [img.unsqueeze(0) for img in item['ref_imgs']]
         intrinsics = torch.from_numpy(item['intrinsics'])
         gt         = item['groundtruth']
+        oxts       = item['oxts']
 
         sample = {'tgt': tgt,
                 'ref_imgs': ref_imgs,
                 'intrinsics': intrinsics,
-                'groundtruth': gt}
+                'groundtruth': gt,
+                'oxts': oxts}
                 
         return sample
 
@@ -289,7 +292,7 @@ class Trainer:
         # save checkpoint
         self.save_chkpnt()
 
-    def process_batch(self, samples, warp_test=False):
+    def process_batch(self, samples, warp_test=False, semi_sup_pose=False):
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
         ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
         intrinsics = samples['intrinsics'].to(self.device)
@@ -297,6 +300,18 @@ class Trainer:
 
         disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
         poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
+
+        # TODO: Test and finish
+        if semi_sup_pose:
+            assert("Not implemented yet")
+            # convert oxts into vec
+            oxts   = samples['oxts']
+            poses  = [invert_pose_np(oxts[1]), invert_pose_np(oxts[2])]
+            angles = [mat2euler(pose[:3][:3]) for pose in poses]
+            ts     = [pose[:3][3] for pose in poses]
+
+            poses = [np.concat(ang, t) for ang, t in zip(angles, ts)]
+            pass
 
         if warp_test:
             return [disp, poses]
