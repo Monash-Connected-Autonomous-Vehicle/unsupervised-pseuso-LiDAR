@@ -107,6 +107,7 @@ class Trainer:
 
         # sample to test warp
         # self.warp_sample = self.create_warp_sample()
+        self.train_sample  = self.dataset.__getitem__(100)
 
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
@@ -267,7 +268,7 @@ class Trainer:
 
             self.model_optimizer.zero_grad()
             
-            outputs, self.loss = self.process_batch(samples)
+            outputs, self.loss = self.process_batch(self.train_sample) # train sample
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
@@ -293,8 +294,8 @@ class Trainer:
         self.save_chkpnt()
 
     def process_batch(self, samples, warp_test=False, semi_sup_pose=False):
-        tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
-        ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
+        tgt        = samples['tgt'].unsqueeze(0).to(self.device) # T(B, 3, H, W)
+        ref_imgs   = [img.unsqueeze(0).to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
         intrinsics = samples['intrinsics'].to(self.device)
         gt         = samples['groundtruth'].to(self.device)
 

@@ -1,5 +1,5 @@
 model:
-    name: 'sfm'
+    name: 'single_img_sfm'
     depth:
         name: 'StnDispNet'
         file: 'stn_depth_net'
@@ -19,9 +19,9 @@ datasets:
     dataset: ['KITTI']
 action:
     mode : 'train'
-    MLOps: False
+    MLOps: True
     log_freq: 100
-    from_scratch : False
+    from_scratch : True
     split: [0.8, 0.2]
     random_seed : 42
     batch_size: 4
@@ -29,9 +29,9 @@ action:
     optimizer:
         name: 'Adam'
         depth:
-            lr: 0.00001
+            lr: 0.0002
         pose:
-            lr: 0.00001
+            lr: 0.0002
     scheduler:
         name: 'StepLR'
         step_size: 30
