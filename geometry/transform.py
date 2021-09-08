@@ -47,7 +47,6 @@ class Transform():
         Y_norm = 2*(Y / Z)/(h-1) - 1  # Idem [B, H*W]
 
         pixel_coords = torch.stack([X_norm, Y_norm], dim=2)  # [B, H*W, 2]
-
         return pixel_coords.reshape(b, h, w, 2)
     
     def project_img_to_cam(self, depth, K):

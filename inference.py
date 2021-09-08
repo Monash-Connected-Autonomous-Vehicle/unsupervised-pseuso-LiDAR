@@ -20,7 +20,7 @@ dataloader = trainer.train_loader
 
 one_sample = trainer.dataset.__getitem__(0)
 
-'''
+
 # load a depth model
 depth_model = trainer.depth_model
 # depth_model.load_state_dict(depth_model_state_dict)
@@ -42,19 +42,14 @@ with torch.no_grad():
 
 # split poses
 poses_t_0 = pose[:, 0, :]
+print(pose.shape)
+print(poses_t_0.shape)
 
 
 # figure out all outputs
-img        = depth[0][0].squeeze().cpu().detach().numpy()
-mat_pose   = pose_vec2mat(poses_t_0)
+img        = (1/depth[0][0].squeeze()).cpu().detach().numpy()
 
-print('pose')
-print(mat_pose)
-'''
-
-# oxts sample
-
-print('oxts')
-print(one_sample['oxts'])
+plt.imshow(img)
+plt.show()
 
 

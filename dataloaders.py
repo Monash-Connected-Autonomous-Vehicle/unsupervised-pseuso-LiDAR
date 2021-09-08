@@ -14,6 +14,7 @@ from PIL import Image
 
 from geometry.calibration import Calibration
 from geometry.oxts_parser import *
+from geometry.pose_geometry import *
 
 class KittiDataset(Dataset):
     def __init__(self, config, transforms=None):
@@ -115,7 +116,7 @@ class UnSupKittiDataset(KittiDataset):
 
             calib_dir = sample_dirs[0][:29] # mac - 20 , beauty - 29
             calib     = Calibration(calib_dir)
-            sample['intrinsics'] = calib.P
+            sample['intrinsics'] = torch.from_numpy(calib.P)
 
             oxts_lst = []
             for i in range(3):
@@ -127,7 +128,15 @@ class UnSupKittiDataset(KittiDataset):
 
                 oxts_lst.append(oxts_dir)
             
-            sample['oxts'] = load_oxts_packets_and_poses(oxts_lst)
+            # oxts packets to poses
+            oxts   = load_oxts_packets_and_poses(oxts_lst)
+
+            # convert poses from mat to euler 
+            poses  = [invert_pose_np(oxts[1]), invert_pose_np(oxts[2])]
+            angles = [mat2euler(pose[:3,:3]) for pose in poses]
+            ts     = [pose[:3, 3] for pose in poses]
+        
+            sample['oxts'] = [torch.from_numpy(np.concatenate((ang, t))) for ang, t in zip(angles, ts)]
 
             sample['groundtruth'] = sample_dirs[3]
             
