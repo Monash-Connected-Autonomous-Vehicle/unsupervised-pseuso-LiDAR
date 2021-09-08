@@ -90,7 +90,7 @@ def pose_vec2mat(vec, mode='euler'):
         raise ValueError('Rotation mode not supported {}'.format(mode))
     mat = torch.cat([rot_mat, trans], dim=2)  # [B,3,4]
     
-    return mat #.type(torch.cuda.DoubleTensor)
+    return mat.type(torch.cuda.DoubleTensor)
 
 def invert_pose(T):
     """Inverts a [B,4,4] torch.tensor pose"""
@@ -106,7 +106,7 @@ def invert_pose_np(T):
     Tinv[:3, :3], Tinv[:3, 3] = R.T, - np.matmul(R.T, t)
     return Tinv
 
-def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mode='zeros', warp_test=False):
+def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mode='zeros', warp_test=True):
     """
     Inverse warp a source image to the target image plane.
     Args:
@@ -136,6 +136,5 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
     rot, tr = proj_cam_to_src_pixel[..., :3], proj_cam_to_src_pixel[..., -1:]
     src_pixel_coords = warper.project_cam_to_img(cam_coords, rot, tr)  # [B,H,W,2]
 
-    projected_img = F.grid_sample(img, src_pixel_coords.float(), mode='bilinear', padding_mode=padding_mode, align_corners=True)
-    #img.type(torch.cuda.DoubleTensor)
+    projected_img = F.grid_sample(img.type(torch.cuda.DoubleTensor), src_pixel_coords, mode='bilinear', padding_mode=padding_mode, align_corners=True)
     return projected_img

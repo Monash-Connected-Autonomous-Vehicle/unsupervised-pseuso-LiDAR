@@ -114,7 +114,7 @@ class UnSupKittiDataset(KittiDataset):
             sample['tgt']      = sample_dirs[0]
             sample['ref_imgs'] = sample_dirs[1:3]
 
-            calib_dir = sample_dirs[0][:20] # mac - 20 , beauty - 29
+            calib_dir = sample_dirs[0][:29] # mac - 20 , beauty - 29
             calib     = Calibration(calib_dir)
             sample['intrinsics'] = torch.from_numpy(calib.P)
 
@@ -123,7 +123,7 @@ class UnSupKittiDataset(KittiDataset):
                 oxts_dir = sample_dirs[i]
 
                 img_indx = oxts_dir[-14:-4]
-                oxts_dir = oxts_dir[0:46] # mac - 46, beauty - 55
+                oxts_dir = oxts_dir[0:55] # mac - 46, beauty - 55
                 oxts_dir = oxts_dir + '/oxts/data/' + img_indx + '.txt'
 
                 oxts_lst.append(oxts_dir)
@@ -132,7 +132,7 @@ class UnSupKittiDataset(KittiDataset):
             oxts   = load_oxts_packets_and_poses(oxts_lst)
 
             # convert poses from mat to euler 
-            poses  = [oxts[1], oxts[2]]
+            poses  = [invert_pose_np(oxts[1]), invert_pose_np(oxts[2])]
             angles = [mat2euler(pose[:3,:3]) for pose in poses]
             ts     = [pose[:3, 3] for pose in poses]
         

@@ -24,14 +24,14 @@ action:
     from_scratch : True
     split: [0.8, 0.2]
     random_seed : 42
-    batch_size: 4
+    batch_size: 1
     num_epochs: 2
     optimizer:
         name: 'Adam'
         depth:
-            lr: 0.00001
+            lr: 0.0002
         pose:
-            lr: 0.00001
+            lr: 0.0002
     scheduler:
         name: 'StepLR'
         step_size: 30

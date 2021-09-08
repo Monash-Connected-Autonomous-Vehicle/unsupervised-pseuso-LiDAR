@@ -92,7 +92,7 @@ class Trainer:
 
         transform = [
             transforms.ToTensor(),
-            # transforms.Resize((384, 1280)), # packnet standard
+            transforms.Resize((384, 1280)), # packnet standard
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ]
         
@@ -110,7 +110,6 @@ class Trainer:
 
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
-
 
             # weights and biases init
             wandb.init(project="unsup-depth-estimation", config=config)
@@ -200,7 +199,7 @@ class Trainer:
         # load repeatable data
         tgt        = item['tgt'].unsqueeze(0)
         ref_imgs   = [img.unsqueeze(0) for img in item['ref_imgs']]
-        intrinsics = torch.from_numpy(item['intrinsics'])
+        intrinsics = item['intrinsics']
         gt         = item['groundtruth']
         oxts       = item['oxts']
 
@@ -254,6 +253,7 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
+            break
         
         if self.MLOps:
             # log predictions table to wandb
@@ -267,7 +267,7 @@ class Trainer:
 
             self.model_optimizer.zero_grad()
             
-            outputs, self.loss = self.process_batch(samples)
+            outputs, self.loss = self.process_batch(samples, semi_sup_pose=True)
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
@@ -276,8 +276,8 @@ class Trainer:
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                         "smoothness_loss":self.loss[1]})
 
-                if self.epoch < 1 and (batch_indx + 1) < 100:
-                    self.log_warps(batch_indx)
+                # if self.epoch < 1 and (batch_indx + 1) < 200:
+                #     self.log_warps(batch_indx)
 
                 
                 if (batch_indx + 1) % self.log_freq == 0:
@@ -300,18 +300,20 @@ class Trainer:
 
         disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
 
-        # TODO: Test and finish
         if semi_sup_pose:
-            pass
+            poses_t_0 = samples["oxts"][0].unsqueeze(1)
+            poses_t_2 = samples["oxts"][1].unsqueeze(1)
+            poses     = torch.cat((poses_t_0, poses_t_2), 1).to(self.device)
         else:
-            poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
+            # poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
+            pass
 
-            if warp_test:
-                return [disp, poses]
-            else:
-                # forward + backward 
-                loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
-                return [disp, poses], loss
+        if warp_test:
+            return [disp, poses]
+        else:
+            # forward + backward 
+            loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
+            return [disp, poses], loss
     
     @torch.no_grad()
     def validate(self):
