@@ -92,7 +92,7 @@ class Trainer:
 
         transform = [
             transforms.ToTensor(),
-            transforms.Resize((384, 1280)), # packnet standard
+            # transforms.Resize((384, 1280)), # packnet standard
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ]
         
@@ -299,26 +299,19 @@ class Trainer:
         gt         = samples['groundtruth'].to(self.device)
 
         disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
-        poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
 
         # TODO: Test and finish
         if semi_sup_pose:
-            assert("Not implemented yet")
-            # convert oxts into vec
-            oxts   = samples['oxts']
-            poses  = [invert_pose_np(oxts[1]), invert_pose_np(oxts[2])]
-            angles = [mat2euler(pose[:3][:3]) for pose in poses]
-            ts     = [pose[:3][3] for pose in poses]
-
-            poses = [np.concat(ang, t) for ang, t in zip(angles, ts)]
             pass
-
-        if warp_test:
-            return [disp, poses]
         else:
-            # forward + backward 
-            loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
-            return [disp, poses], loss
+            poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
+
+            if warp_test:
+                return [disp, poses]
+            else:
+                # forward + backward 
+                loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
+                return [disp, poses], loss
     
     @torch.no_grad()
     def validate(self):

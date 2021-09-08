@@ -32,7 +32,7 @@ class Transform():
         b, _, h, w = cam_coords.size()
         cam_coords_flat = cam_coords.reshape(b, 3, -1)  # [B, 3, H*W]
         if proj_c2p_rot is not None:
-            pcoords = proj_c2p_rot @ cam_coords_flat
+            pcoords = proj_c2p_rot.float() @ cam_coords_flat.float()
         else:
             pcoords = cam_coords_flat
 
@@ -65,9 +65,9 @@ class Transform():
             self.pixel_coords = self.set_id_grid(depth)
 
         current_pixel_coords = self.pixel_coords[..., :h, :w].expand(b, 3, h, w).reshape(b, 3, -1)  # [B, 3, H*W]
-        current_pixel_coords = current_pixel_coords.type(torch.cuda.DoubleTensor)
+        # current_pixel_coords = current_pixel_coords.type(torch.cuda.DoubleTensor)
 
-        K_inv = K.inverse()
+        K_inv = K.inverse().float()
 
         cam_coords = (K_inv @ current_pixel_coords).reshape(b, 3, h, w)
         return cam_coords * depth.unsqueeze(1)

@@ -83,13 +83,14 @@ def pose_vec2mat(vec, mode='euler'):
     """Convert Euler parameters to transformation matrix."""
     if mode is None:
         return vec
-    trans, rot = vec[:, :3].unsqueeze(-1), vec[:, 3:]
+    trans, rot = vec[:, 3:].unsqueeze(-1), vec[:, :3]
     if mode == 'euler':
         rot_mat = euler2mat(rot)
     else:
         raise ValueError('Rotation mode not supported {}'.format(mode))
     mat = torch.cat([rot_mat, trans], dim=2)  # [B,3,4]
-    return mat.type(torch.cuda.DoubleTensor)
+    
+    return mat #.type(torch.cuda.DoubleTensor)
 
 def invert_pose(T):
     """Inverts a [B,4,4] torch.tensor pose"""
@@ -135,6 +136,6 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
     rot, tr = proj_cam_to_src_pixel[..., :3], proj_cam_to_src_pixel[..., -1:]
     src_pixel_coords = warper.project_cam_to_img(cam_coords, rot, tr)  # [B,H,W,2]
 
-    projected_img = F.grid_sample(img.type(torch.cuda.DoubleTensor), src_pixel_coords, mode='bilinear', padding_mode=padding_mode, align_corners=True)
-
+    projected_img = F.grid_sample(img, src_pixel_coords.float(), mode='bilinear', padding_mode=padding_mode, align_corners=True)
+    #img.type(torch.cuda.DoubleTensor)
     return projected_img

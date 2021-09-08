@@ -21,7 +21,7 @@ action:
     mode : 'train'
     MLOps: False
     log_freq: 100
-    from_scratch : False
+    from_scratch : True
     split: [0.8, 0.2]
     random_seed : 42
     batch_size: 4

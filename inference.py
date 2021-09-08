@@ -12,7 +12,7 @@ depth_model_state_dict = checkpoint['dpth_mdl_state_dict']
 pose_model_state_dict  = checkpoint['pose_mdl_state_dict']
 
 # init dataset
-with open('configs/test_config.yaml') as file:
+with open('configs/mac_test.yaml') as file:
     config = yaml.full_load(file)
 
 trainer    = Trainer(config)
@@ -20,7 +20,7 @@ dataloader = trainer.train_loader
 
 one_sample = trainer.dataset.__getitem__(0)
 
-'''
+
 # load a depth model
 depth_model = trainer.depth_model
 # depth_model.load_state_dict(depth_model_state_dict)
@@ -42,19 +42,15 @@ with torch.no_grad():
 
 # split poses
 poses_t_0 = pose[:, 0, :]
+print(pose.shape)
+print(poses_t_0.shape)
 
 
 # figure out all outputs
 img        = depth[0][0].squeeze().cpu().detach().numpy()
-mat_pose   = pose_vec2mat(poses_t_0)
+# mat_pose   = pose_vec2mat(poses_t_0)
 
-print('pose')
-print(mat_pose)
-'''
-
-# oxts sample
-
-print('oxts')
-print(one_sample['oxts'])
+# print('pose')
+# print(mat_pose)
 
 

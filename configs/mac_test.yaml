@@ -1,5 +1,5 @@
 model:
-    name: 'test_sfm'
+    name: 'sfm'
     depth:
         name: 'DispNetS'
         file: 'disp_net'
