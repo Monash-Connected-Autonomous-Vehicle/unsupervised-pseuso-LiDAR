@@ -53,6 +53,7 @@ class Trainer:
         self.MLOps               = config['action']['MLOps']
         self.train_from_scratch  = config['action']['from_scratch']
         self.num_epochs          = config['action']['num_epochs']
+        self.num_workers         = config['action']['num_workers']
         self.log_freq            = config['action']['log_freq']
         self.epoch      = 0
         self.step       = 0 
@@ -92,7 +93,9 @@ class Trainer:
 
         transform = [
             transforms.ToTensor(),
+            transforms.ToPILImage(),
             transforms.Resize((384, 1280)), # packnet standard
+            transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ]
         
@@ -179,9 +182,9 @@ class Trainer:
         valid_sampler = SequentialIndicesSampler(val_indices)
 
         train_loader      = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
-                                           sampler=train_sampler, num_workers=16)
+                                           sampler=train_sampler, num_workers=self.num_workers)
         validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
-                                            sampler=valid_sampler, num_workers=8)
+                                            sampler=valid_sampler, num_workers=self.num_workers)
         return train_loader, validation_loader
 
     def set_train(self):
