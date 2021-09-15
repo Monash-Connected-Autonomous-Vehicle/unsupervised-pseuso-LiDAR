@@ -1,0 +1,3 @@
+print((tgt - projected_img).mean()) : 0.006990269541690233
+print((ref_imgs[0] - projected_img).mean()) : 0.0007531999255450671
+print((ref_imgs[1] - projected_img).mean()) : 0.011827625895157476

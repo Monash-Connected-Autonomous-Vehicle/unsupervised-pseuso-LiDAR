@@ -65,9 +65,10 @@ class Transform():
 
         current_pixel_coords = self.pixel_coords[..., :h, :w].expand(b, 3, h, w).reshape(b, 3, -1)  # [B, 3, H*W]
         current_pixel_coords = current_pixel_coords.type(torch.cuda.DoubleTensor)
-
+        
         K_inv = K.inverse()
 
         cam_coords = (K_inv @ current_pixel_coords).reshape(b, 3, h, w)
-        return cam_coords * depth.unsqueeze(1)
+        cam_coords = cam_coords * depth.unsqueeze(1)
+        return cam_coords
     

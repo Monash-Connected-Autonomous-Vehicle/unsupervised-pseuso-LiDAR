@@ -109,7 +109,7 @@ class Losses:
         poses     = [poses_t_0, poses_t_2] 
         
         # inverse warp from 
-        projected_imgs = [inverse_warp(ref_img, depth[0], pose, intrinsics) for ref_img, pose in zip(ref_imgs, poses)]
+        projected_imgs = [inverse_warp(ref_img, depth, pose, intrinsics) for ref_img, pose in zip(ref_imgs, poses)]
 
         # reprojection between projected and target
         reprojection_losses = [self.compute_photometric_loss(proj_img, tgt_img) for proj_img in projected_imgs]

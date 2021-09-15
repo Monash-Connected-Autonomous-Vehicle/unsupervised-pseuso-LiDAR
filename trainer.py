@@ -109,7 +109,7 @@ class Trainer:
         self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
 
         # sample to test warp
-        # self.warp_sample = self.create_warp_sample()
+        self.warp_sample = self.create_warp_sample()
 
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
@@ -204,7 +204,7 @@ class Trainer:
         ref_imgs   = [img.unsqueeze(0) for img in item['ref_imgs']]
         intrinsics = item['intrinsics']
         gt         = item['groundtruth']
-        oxts       = item['oxts']
+        oxts       = [pose.unsqueeze(0) for pose in item['oxts']]
 
         sample = {'tgt': tgt,
                 'ref_imgs': ref_imgs,
@@ -229,8 +229,14 @@ class Trainer:
         self.set_eval()
 
         # pass through model
-        outputs = self.process_batch(self.warp_sample, warp_test=True)
+        outputs = self.process_batch(self.warp_sample, warp_test=True, semi_sup_pose=True)
         depth   = disp_to_depth(outputs[0][0].squeeze().unsqueeze(0))
+
+        mean_depth = depth.mean(1).mean(1).cpu().detach().numpy()
+
+        # calculate depth mean and log
+        with open('./images/warping/mean_depth.txt', 'a') as f:
+            f.write(str(mean_depth) + '\n')
 
         poses   = outputs[1]
         poses   = poses[:, 0, :]
@@ -270,21 +276,21 @@ class Trainer:
 
             self.model_optimizer.zero_grad()
             
-            outputs, self.loss = self.process_batch(samples, semi_sup_pose=True)
+            outputs, self.loss = self.process_batch(samples, semi_sup_pose=False)
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
+            # if self.epoch < 1 and (batch_indx + 1) < 200:
+            #     self.log_warps(batch_indx)
+                    
             if self.MLOps:
 
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                         "smoothness_loss":self.loss[1]})
-
-                # if self.epoch < 1 and (batch_indx + 1) < 200:
-                #     self.log_warps(batch_indx)
-
                 
                 if (batch_indx + 1) % self.log_freq == 0:
                     self.log_depth_predictions(samples, outputs)
+                    self.log_warps(batch_indx)
             
 
         # self.model_lr_scheduler.step()
@@ -308,8 +314,7 @@ class Trainer:
             poses_t_2 = samples["oxts"][1].unsqueeze(1)
             poses     = torch.cat((poses_t_0, poses_t_2), 1).to(self.device)
         else:
-            # poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
-            pass
+            poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
 
         if warp_test:
             return [disp, poses]
