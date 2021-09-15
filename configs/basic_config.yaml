@@ -26,6 +26,7 @@ action:
     random_seed : 42
     batch_size: 4
     num_epochs: 4
+    num_workers: 8
     optimizer:
         name: 'Adam'
         depth:

@@ -6,7 +6,7 @@ from utils.transforms import UnNormalize
 from geometry.pose_geometry import *
 
 # load checkpoint
-save_path = './pretrained/sfm.pth'
+save_path = './pretrained/generic_sfm.pth'
 checkpoint = torch.load(save_path)
 depth_model_state_dict = checkpoint['dpth_mdl_state_dict']
 pose_model_state_dict  = checkpoint['pose_mdl_state_dict']
@@ -42,14 +42,10 @@ with torch.no_grad():
 
 # split poses
 poses_t_0 = pose[:, 0, :]
-print(pose.shape)
-print(poses_t_0.shape)
-
 
 # figure out all outputs
 img        = (1/depth[0][0].squeeze()).cpu().detach().numpy()
 
 plt.imshow(img)
 plt.show()
-
 

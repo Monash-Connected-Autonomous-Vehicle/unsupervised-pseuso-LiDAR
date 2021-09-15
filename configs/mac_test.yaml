@@ -25,6 +25,7 @@ action:
     split: [0.8, 0.2]
     random_seed : 42
     batch_size: 4
+    num_workers: 8
     num_epochs: 10
     optimizer:
         name: 'Adam'

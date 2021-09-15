@@ -38,6 +38,9 @@ class Calibration():
         self.kitti_filepath = kitti_filepath
         calib_velo_to_cam = self.read_calib_file(kitti_filepath + "calib_velo_to_cam.txt")
         calib_cam_to_cam  = self.read_calib_file(kitti_filepath + "calib_cam_to_cam.txt")
+
+        # camera intrinsics
+        self.K = calib_cam_to_cam["K_02"]
         
         # Projection matrix from rect camera coord to image2 coord
         self.P = calib_cam_to_cam["P_rect_02"].reshape(3, 4)
