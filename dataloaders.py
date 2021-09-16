@@ -32,6 +32,12 @@ class KittiDataset(Dataset):
     def load_img(self, path, gt=False):
         img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
 
+        h = None
+        w = None
+        if not gt:
+            h = img.shape[0]
+            w = img.shape[1]
+
         for t in self.transforms[:-1]:
             img = t(img)
 
@@ -39,7 +45,7 @@ class KittiDataset(Dataset):
         if not gt:
             img = self.transforms[-1](img)
 
-        return img.squeeze()
+        return img.squeeze(), h, w
         
     def sliding_window(self, iterable, size):
         '''
@@ -69,18 +75,24 @@ class KittiDataset(Dataset):
         ret_sample = {}
 
         # prep target
-        ret_sample['tgt'] = self.load_img(sample['tgt'])
+        ret_sample['tgt'], og_h, og_w = self.load_img(sample['tgt'])
 
         # prep sources
         imgs = []
         for img in sample['ref_imgs']:
-            imgs.append(self.load_img(img))
+            imgs.append(self.load_img(img)[0])
         ret_sample['ref_imgs'] = imgs
 
-        ret_sample['intrinsics'] = sample['intrinsics']
+        # load and scale intrinsics based
+        # on size of Resize
+        intrinsics = sample['intrinsics']
+        intrinsics[0] *= self.img_width  / og_w
+        intrinsics[1] *= self.img_height / og_h
+        ret_sample['intrinsics'] = torch.from_numpy(intrinsics) 
+        
         ret_sample['oxts']       = sample['oxts']
 
-        ret_sample['groundtruth'] = self.load_img(sample['groundtruth'], gt=True)
+        ret_sample['groundtruth'], _, _ = self.load_img(sample['groundtruth'], gt=True)
 
         return ret_sample
 
@@ -116,8 +128,7 @@ class UnSupKittiDataset(KittiDataset):
 
             calib_dir = sample_dirs[0][:29] # mac - 20 , beauty - 29
             calib     = Calibration(calib_dir)
-            sample['intrinsics'] = torch.from_numpy(calib.K.reshape((3, 3))) 
-            sample['intrinsics'] *= 0.001 # mm -> m 
+            sample['intrinsics']    = calib.P.reshape(3, 4)[:, :3]
 
             oxts_lst = []
             for i in range(3):

@@ -109,7 +109,7 @@ class Trainer:
         self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
 
         # sample to test warp
-        self.warp_sample = self.create_warp_sample()
+        # self.warp_sample = self.create_warp_sample()
 
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
@@ -266,7 +266,6 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
-            break
         
         if self.MLOps:
             # log predictions table to wandb
@@ -280,12 +279,12 @@ class Trainer:
 
             self.model_optimizer.zero_grad()
             
-            outputs, self.loss = self.process_batch(samples, semi_sup_pose=True)
+            outputs, self.loss = self.process_batch(samples, semi_sup_pose=False)
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
-            if self.epoch < 1 and (batch_indx + 1) < 1000:
-                self.log_warps(batch_indx)
+            # if self.epoch < 1 and (batch_indx + 1) < 1000:
+            #    self.log_warps(batch_indx)
             
             if self.MLOps:
 

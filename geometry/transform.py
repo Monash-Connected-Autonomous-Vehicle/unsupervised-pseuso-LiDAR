@@ -10,65 +10,141 @@ from PIL import Image
 
 class Transform():
 
-    def __init__(self, P, Tx, img_width, img_height):
-        self.P      = P
-        self.Tx     = Tx
-        self.width  = img_width
-        self.height = img_height
-        self.pixel_coords = None
-
-    def set_id_grid(self, depth):
-        
-        b, h, w = depth.size()
-        i_range = torch.arange(0, h).view(1, h, 1).expand(1, h, w).type_as(depth)  # [1, H, W]
-        j_range = torch.arange(0, w).view(1, 1, w).expand(1, h, w).type_as(depth)  # [1, H, W]
-        ones = torch.ones(1, h, w).type_as(depth)
-
-        pixel_coords = torch.stack((j_range, i_range, ones), dim=1)  # [1, 3, H, W]
-
-        return pixel_coords
-
-    def project_cam_to_img(self, cam_coords, proj_c2p_rot, proj_c2p_tr):
-        b, _, h, w = cam_coords.size()
-        cam_coords_flat = cam_coords.reshape(b, 3, -1)  # [B, 3, H*W]
-        if proj_c2p_rot is not None:
-            pcoords = proj_c2p_rot @ cam_coords_flat
+    def meshgrid(self, B, H, W, dtype, device, normalized=False):
+        '''
+        Create meshgrid with a specific resolution
+        Parameters
+        ----------
+        B : int
+            Batch size
+        H : int
+            Height size
+        W : int
+            Width size
+        dtype : torch.dtype
+            Meshgrid type
+        device : torch.device
+            Meshgrid device
+        normalized : bool
+            True if grid is normalized between -1 and 1
+        Returns
+        -------
+        xs : torch.Tensor [B,1,W]
+            Meshgrid in dimension x
+        ys : torch.Tensor [B,H,1]
+            Meshgrid in dimension y
+        '''
+        if normalized:
+            xs = torch.linspace(-1, 1, W, device=device, dtype=dtype)
+            ys = torch.linspace(-1, 1, H, device=device, dtype=dtype)
         else:
-            pcoords = cam_coords_flat
+            xs = torch.linspace(0, W-1, W, device=device, dtype=dtype)
+            ys = torch.linspace(0, H-1, H, device=device, dtype=dtype)
+        ys, xs = torch.meshgrid([ys, xs])
+        return xs.repeat([B, 1, 1]), ys.repeat([B, 1, 1])
 
-        if proj_c2p_tr is not None:
-            pcoords = pcoords + proj_c2p_tr  # [B, 3, H*W]
-
-        X = pcoords[:, 0]
-        Y = pcoords[:, 1]
-        Z = pcoords[:, 2].clamp(min=1e-3)
-
-        X_norm = 2*(X / Z)/(w-1) - 1  # Normalized, -1 if on extreme left, 1 if on extreme right (x = w-1) [B, H*W]
-        Y_norm = 2*(Y / Z)/(h-1) - 1  # Idem [B, H*W]
-
-        pixel_coords = torch.stack([X_norm, Y_norm], dim=2)  # [B, H*W, 2]
-        return pixel_coords.reshape(b, h, w, 2)
-    
-    def project_img_to_cam(self, depth, K):
-        """Transform coordinates in the pixel frame to the camera frame.
-        Args:
-            depth: depth maps -- [B, H, W]
-            intrinsics_inv: intrinsics_inv matrix for each element of batch -- [B, 3, 3]
-        Returns:
-            array of (u,v,1) cam coordinates -- [B, 3, H, W]
+    def image_grid(self, B, H, W, dtype, device, normalized=False):
         """
+        Create an image grid with a specific resolution
+        Parameters
+        ----------
+        B : int
+            Batch size
+        H : int
+            Height size
+        W : int
+            Width size
+        dtype : torch.dtype
+            Meshgrid type
+        device : torch.device
+            Meshgrid device
+        normalized : bool
+            True if grid is normalized between -1 and 1
+        Returns
+        -------
+        grid : torch.Tensor [B,3,H,W]
+            Image grid containing a meshgrid in x, y and 1
+        """
+        xs, ys = self.meshgrid(B, H, W, dtype, device, normalized=normalized)
+        ones = torch.ones_like(xs)
+        grid = torch.stack([xs, ys, ones], dim=1)
+        return grid
 
-        b, h, w = depth.size()
-
-        if (self.pixel_coords is None) or self.pixel_coords.size(2) < h:
-            self.pixel_coords = self.set_id_grid(depth)
-
-        current_pixel_coords = self.pixel_coords[..., :h, :w].expand(b, 3, h, w).reshape(b, 3, -1)  # [B, 3, H*W]
-        current_pixel_coords = current_pixel_coords.type(torch.cuda.DoubleTensor)
+    def reconstruct(self, depth, K):
+        """
+        Reconstructs pixel-wise 3D points from a depth map.
+        Parameters
+        ----------
+        depth : torch.Tensor [B,1,H,W]
+            Depth map for the camera
+        frame : 'w'
+            Reference frame: 'c' for camera and 'w' for world
+        Returns
+        -------
+        points : torch.tensor [B,3,H,W]
+            Pixel-wise 3D points
+        """
+        depth = depth.unsqueeze(1)
+        B, C, H, W = depth.shape
+        assert C == 1
         
-        K_inv = K.inverse()
+        Kinv = K.inverse().float()
+        
+        # Create flat index grid
+        grid = self.image_grid(B, H, W, depth.dtype, depth.device, normalized=False)  # [B,3,H,W]
+        flat_grid = grid.view(B, 3, -1)  # [B,3,HW]
 
-        cam_coords = (K_inv @ current_pixel_coords).reshape(b, 3, h, w)
-        cam_coords = cam_coords * depth.unsqueeze(1)
-        return cam_coords
-    
+        # Estimate the outward rays in the camera frame
+        xnorm = (Kinv.bmm(flat_grid)).view(B, 3, H, W)
+        # Scale rays to metric depth
+        Xc = xnorm * depth
+
+        return Xc
+
+    def project(self, X, K, Tcw):
+        """
+        Projects 3D points onto the image plane
+        Parameters
+        ----------
+        X : torch.Tensor [B,3,H,W]
+            3D points to be projected
+        frame : 'w'
+            Reference frame: 'c' for camera and 'w' for world
+        Returns
+        -------
+        points : torch.Tensor [B,H,W,2]
+            2D projected points that are within the image boundaries
+        """
+        B, C, H, W = X.shape
+        
+        # flatten camera coords
+        Xc = X.view(B, 3, -1)
+        
+        #collect rot and trans matrix
+        rot   = Tcw[:, :, :3]
+        trans = Tcw[:, :, -1:]
+        
+        # transform each poin
+        Xc = rot.type(torch.cuda.DoubleTensor) @ Xc.type(torch.cuda.DoubleTensor)
+        Xc = K.type(torch.cuda.DoubleTensor) @ Xc
+        Xc = Xc + trans.type(torch.cuda.DoubleTensor)
+        
+        
+        # Normalize points
+        X = Xc[:, 0]
+        Y = Xc[:, 1]
+        Z = Xc[:, 2].clamp(min=1e-5)
+        Xnorm = 2 * (X / Z) / (W - 1) - 1.
+        Ynorm = 2 * (Y / Z) / (H - 1) - 1.
+
+        # Clamp out-of-bounds pixels
+        # Xmask = ((Xnorm > 1) + (Xnorm < -1)).detach()
+        # Xnorm[Xmask] = 2.
+        # Ymask = ((Ynorm > 1) + (Ynorm < -1)).detach()
+        # Ynorm[Ymask] = 2.
+
+        # Return pixel coordinates
+        return torch.stack([Xnorm, Ynorm], dim=-1).view(B, H, W, 2)
+
+        
+        

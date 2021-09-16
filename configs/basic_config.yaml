@@ -19,7 +19,7 @@ datasets:
     dataset: ['KITTI']
 action:
     mode : 'train'
-    MLOps: true
+    MLOps: True
     log_freq: 100
     from_scratch : True
     split: [0.8, 0.2]
@@ -30,9 +30,9 @@ action:
     optimizer:
         name: 'Adam'
         depth:
-            lr: 0.0002
+            lr: 0.0001
         pose:
-            lr: 0.0002
+            lr: 0.0001
     scheduler:
         name: 'StepLR'
         step_size: 30
