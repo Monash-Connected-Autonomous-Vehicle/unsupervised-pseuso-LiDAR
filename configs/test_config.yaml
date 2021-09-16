@@ -19,7 +19,7 @@ datasets:
     dataset: ['KITTI']
 action:
     mode : 'train'
-    MLOps: False
+    MLOps: True
     log_freq: 100
     from_scratch : False
     split: [0.8, 0.2]

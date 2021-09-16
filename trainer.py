@@ -109,7 +109,7 @@ class Trainer:
         self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
 
         # sample to test warp
-        self.warp_sample = self.create_warp_sample()
+        # self.warp_sample = self.create_warp_sample()
 
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
@@ -235,7 +235,7 @@ class Trainer:
         mean_depth = depth.mean(1).mean(1).cpu().detach().numpy()
 
         # calculate depth mean and log
-        with open('./images/warping/mean_depth.txt', 'a') as f:
+        with open('./images/depth/mean_depth.txt', 'a') as f:
             f.write(str(mean_depth) + '\n')
 
         poses   = outputs[1]
@@ -249,8 +249,12 @@ class Trainer:
         projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
         projected_img = 0.5 + (projected_img * 0.5) # remove normalization
 
-        file_name = './images/warping/' + str(indx) + '.png'
-        plt.imsave(file_name, projected_img)
+        d = depth[0].cpu().detach().numpy()
+
+        warp_file_name = './images/warping/' + str(indx) + '.png'
+        depth_name = './images/depth/' + str(indx) + '.png'
+        plt.imsave(warp_file_name, projected_img)
+        plt.imsave(depth_name, d)
 
         self.set_train()
 
@@ -262,7 +266,6 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
-            break
         
         if self.MLOps:
             # log predictions table to wandb
@@ -280,9 +283,9 @@ class Trainer:
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
-            # if self.epoch < 1 and (batch_indx + 1) < 200:
-            #     self.log_warps(batch_indx)
-                    
+            # if self.epoch < 1 and (batch_indx + 1) < 1000:
+            #    self.log_warps(batch_indx)
+            
             if self.MLOps:
 
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
@@ -290,7 +293,7 @@ class Trainer:
                 
                 if (batch_indx + 1) % self.log_freq == 0:
                     self.log_depth_predictions(samples, outputs)
-                    self.log_warps(batch_indx)
+                    # self.log_warps(batch_indx)
             
 
         # self.model_lr_scheduler.step()

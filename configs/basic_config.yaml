@@ -30,9 +30,9 @@ action:
     optimizer:
         name: 'Adam'
         depth:
-            lr: 0.0002
+            lr: 0.0001
         pose:
-            lr: 0.0002
+            lr: 0.0001
     scheduler:
         name: 'StepLR'
         step_size: 30

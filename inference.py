@@ -23,13 +23,13 @@ one_sample = trainer.dataset.__getitem__(0)
 
 # load a depth model
 depth_model = trainer.depth_model
-# depth_model.load_state_dict(depth_model_state_dict)
+depth_model.load_state_dict(depth_model_state_dict)
 depth_model.eval()
 
 # load a pose model
-pose_model = trainer.pose_model
+# pose_model = trainer.pose_model
 # pose_model.load_state_dict(pose_model_state_dict)
-pose_model.eval()
+# pose_model.eval()
 
 # test input image
 input_imgs = one_sample['tgt'].unsqueeze(0).to(trainer.device)
@@ -38,10 +38,6 @@ ref_imgs   = [img.unsqueeze(0).to(trainer.device) for img in one_sample['ref_img
 with torch.no_grad():
     # test and plot
     depth = depth_model(input_imgs)
-    pose  = pose_model(input_imgs, ref_imgs)
-
-# split poses
-poses_t_0 = pose[:, 0, :]
 
 # figure out all outputs
 img        = (1/depth[0][0].squeeze()).cpu().detach().numpy()

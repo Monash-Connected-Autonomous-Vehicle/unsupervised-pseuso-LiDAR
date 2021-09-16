@@ -119,20 +119,16 @@ def inverse_warp(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros
         valid_points: Boolean array indicating point validity
     """
 
-    warper = Transform(K, None, img.shape[0], img.shape[1])
+    warper = Transform()
 
     if warp_test:
-        cam_coords = warper.project_img_to_cam(depth, K)  # [B,1,H,W]
+        cam_coords = warper.reconstruct(depth, K)  # [B,1,H,W]
     else:
-        cam_coords = warper.project_img_to_cam(torch.squeeze(depth), K)  # [B,3,H,W]
+        cam_coords = warper.reconstruct(torch.squeeze(depth), K)  # [B,3,H,W]
 
     pose_mat = pose_vec2mat(pose, rotation_mode)  # [B,3,4]
 
-    # Get projection matrix for tgt camera frame to source pixel frame
-    proj_cam_to_src_pixel = K @ pose_mat  # [B, 3, 4]
-
-    rot, tr = proj_cam_to_src_pixel[..., :3], proj_cam_to_src_pixel[..., -1:]
-    src_pixel_coords = warper.project_cam_to_img(cam_coords, rot, tr)  # [B,H,W,2]
+    src_pixel_coords = warper.project(cam_coords, K, pose_mat)  # [B,H,W,2]
 
     projected_img = F.grid_sample(img.type(torch.cuda.DoubleTensor), src_pixel_coords, mode='bilinear', padding_mode=padding_mode, align_corners=True)
     return projected_img
