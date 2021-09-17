@@ -61,8 +61,8 @@ class Trainer:
         # init models based on config
         self.depth_model = self.load_from_config(config, model_type='depth')
         self.pose_model  = self.load_from_config(config, model_type='pose')
-        
-        if self.depth_model == None or self.pose_model == None:
+
+        if self.depth_model == None: # or self.pose_model == None:
             assert("Config file format is incorrect: Take a look at example \
                     config files")
 
@@ -109,7 +109,7 @@ class Trainer:
         self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
 
         # sample to test warp
-        # self.warp_sample = self.create_warp_sample()
+        self.warp_sample = self.create_warp_sample()
 
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
@@ -121,7 +121,7 @@ class Trainer:
             self.test_table = wandb.Table(columns=columns)
             self.row_id     = 0
 
-            wandb.watch(self.pose_model,  log_freq=self.log_freq)
+            wandb.watch(self.depth_model,  log_freq=self.log_freq)
 
     def save_chkpnt(self):
         print("Saving checkpoint..")
@@ -196,23 +196,7 @@ class Trainer:
         self.pose_model.eval()
 
     def create_warp_sample(self):
-
-        item = self.dataset.__getitem__(100)
-
-        # load repeatable data
-        tgt        = item['tgt'].unsqueeze(0)
-        ref_imgs   = [img.unsqueeze(0) for img in item['ref_imgs']]
-        intrinsics = item['intrinsics']
-        gt         = item['groundtruth']
-        oxts       = [pose.unsqueeze(0) for pose in item['oxts']]
-
-        sample = {'tgt': tgt,
-                'ref_imgs': ref_imgs,
-                'intrinsics': intrinsics,
-                'groundtruth': gt,
-                'oxts': oxts}
-                
-        return sample
+        return next(iter(self.train_loader))
 
     def log_depth_predictions(self, samples, outputs):
 
@@ -230,26 +214,20 @@ class Trainer:
 
         # pass through model
         outputs = self.process_batch(self.warp_sample, warp_test=True, semi_sup_pose=True)
-        depth   = disp_to_depth(outputs[0][0].squeeze().unsqueeze(0))
-
-        mean_depth = depth.mean(1).mean(1).cpu().detach().numpy()
-
-        # calculate depth mean and log
-        with open('./images/depth/mean_depth.txt', 'a') as f:
-            f.write(str(mean_depth) + '\n')
+        depth   = disp_to_depth(outputs[0][0])
 
         poses   = outputs[1]
         poses   = poses[:, 0, :]
 
-        ref_imgs   = self.warp_sample['ref_imgs'][0].to(self.device)
+        ref_imgs   = [ref_img.to(self.device) for ref_img in self.warp_sample['ref_imgs']]
         intrinsics = self.warp_sample['intrinsics'].to(self.device)
 
         # create warp
-        projected_img = inverse_warp(ref_imgs, depth, poses, intrinsics, warp_test=True)
+        projected_img = inverse_warp(ref_imgs[0], depth, poses, intrinsics)[1]
         projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
         projected_img = 0.5 + (projected_img * 0.5) # remove normalization
 
-        d = depth[0].cpu().detach().numpy()
+        d = depth[0][0].cpu().detach().numpy()
 
         warp_file_name = './images/warping/' + str(indx) + '.png'
         depth_name = './images/depth/' + str(indx) + '.png'
@@ -266,6 +244,7 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
+            break
         
         if self.MLOps:
             # log predictions table to wandb
@@ -283,9 +262,9 @@ class Trainer:
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
-            # if self.epoch < 1 and (batch_indx + 1) < 1000:
-            #    self.log_warps(batch_indx)
-            
+            if self.epoch < 1 and (batch_indx + 1) < 10000:
+              self.log_warps(batch_indx)
+
             if self.MLOps:
 
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \

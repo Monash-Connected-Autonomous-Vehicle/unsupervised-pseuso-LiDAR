@@ -95,7 +95,9 @@ class Transform():
         flat_grid = grid.view(B, 3, -1)  # [B,3,HW]
 
         # Estimate the outward rays in the camera frame
-        xnorm = (Kinv.bmm(flat_grid)).view(B, 3, H, W)
+        xnorm = (Kinv.bmm(flat_grid))
+        xnorm = xnorm.view(B, 3, H, W)
+
         # Scale rays to metric depth
         Xc = xnorm * depth
 

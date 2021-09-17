@@ -106,7 +106,7 @@ def invert_pose_np(T):
     Tinv[:3, :3], Tinv[:3, 3] = R.T, - np.matmul(R.T, t)
     return Tinv
 
-def inverse_warp(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros', warp_test=False):
+def inverse_warp(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros'):
     """
     Inverse warp a source image to the target image plane.
     Args:
@@ -121,14 +121,12 @@ def inverse_warp(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros
 
     warper = Transform()
 
-    if warp_test:
-        cam_coords = warper.reconstruct(depth, K)  # [B,1,H,W]
-    else:
-        cam_coords = warper.reconstruct(torch.squeeze(depth), K)  # [B,3,H,W]
+    cam_coords = warper.reconstruct(torch.squeeze(depth), K)  # [B,3,H,W]
 
     pose_mat = pose_vec2mat(pose, rotation_mode)  # [B,3,4]
 
     src_pixel_coords = warper.project(cam_coords, K, pose_mat)  # [B,H,W,2]
 
     projected_img = F.grid_sample(img.type(torch.cuda.DoubleTensor), src_pixel_coords, mode='bilinear', padding_mode=padding_mode, align_corners=True)
+    
     return projected_img

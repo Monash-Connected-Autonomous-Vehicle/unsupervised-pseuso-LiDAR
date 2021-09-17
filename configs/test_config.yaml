@@ -1,5 +1,5 @@
 model:
-    name: 'sfm'
+    name: 'test'
     depth:
         name: 'DispNetS'
         file: 'disp_net'
@@ -19,9 +19,9 @@ datasets:
     dataset: ['KITTI']
 action:
     mode : 'train'
-    MLOps: True
+    MLOps: False
     log_freq: 100
-    from_scratch : False
+    from_scratch : True
     split: [0.8, 0.2]
     random_seed : 42
     batch_size: 4
