@@ -132,7 +132,7 @@ def load_oxts_packets_and_poses(oxts_files):
                 if origin is None:
                     origin = t
 
-                T_w_imu = transform_from_rot_trans(R, origin - t) # change
+                T_w_imu = transform_from_rot_trans(R, t - origin) # change
 
                 oxts.append(T_w_imu)
 

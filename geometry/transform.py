@@ -128,10 +128,9 @@ class Transform():
         
         # transform each poin
         Xc = rot.type(torch.cuda.DoubleTensor) @ Xc.type(torch.cuda.DoubleTensor)
-        Xc = K.type(torch.cuda.DoubleTensor) @ Xc
         Xc = Xc + trans.type(torch.cuda.DoubleTensor)
-        
-        
+        Xc = K.type(torch.cuda.DoubleTensor) @ Xc
+    
         # Normalize points
         X = Xc[:, 0]
         Y = Xc[:, 1]

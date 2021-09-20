@@ -38,6 +38,7 @@ class Calibration():
         self.kitti_filepath = kitti_filepath
         calib_velo_to_cam = self.read_calib_file(kitti_filepath + "calib_velo_to_cam.txt")
         calib_cam_to_cam  = self.read_calib_file(kitti_filepath + "calib_cam_to_cam.txt")
+        calib_imu_to_velo = self.read_calib_file(kitti_filepath + "calib_imu_to_velo")
 
         # camera intrinsics
         self.K = calib_cam_to_cam["K_02"]
