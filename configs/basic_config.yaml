@@ -21,18 +21,18 @@ action:
     mode : 'train'
     MLOps: True
     log_freq: 100
-    from_scratch : True
+    from_scratch : False
     split: [0.8, 0.2]
     random_seed : 42
     batch_size: 4
-    num_epochs: 4
+    num_epochs: 1
     num_workers: 8
     optimizer:
         name: 'Adam'
         depth:
-            lr: 0.0001
+            lr: 0.00001
         pose:
-            lr: 0.0001
+            lr: 0.00001
     scheduler:
         name: 'StepLR'
         step_size: 30

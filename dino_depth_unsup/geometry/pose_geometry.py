@@ -9,7 +9,7 @@ from .transform import Transform
 def isRotationMatrix(R) :
     Rt = np.transpose(R)
     shouldBeIdentity = np.dot(Rt, R)
-    I = np.identity(3, dtype = R.dtype)
+    I = np.identity(3)
     n = np.linalg.norm(I - shouldBeIdentity)
     return n < 1e-6
 
@@ -18,7 +18,7 @@ def isRotationMatrix(R) :
 # of the euler angles ( x and z are swapped ).
 def mat2euler(R) :
 
-    assert(isRotationMatrix(R))
+    # assert(isRotationMatrix(R))
 
     sy = math.sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
 

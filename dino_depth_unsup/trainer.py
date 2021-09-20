@@ -20,10 +20,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 from   torch.utils.data.sampler import SubsetRandomSampler
 
-from dataloaders import UnSupKittiDataset
+from dataloaders import dino_dataset
 from losses import Losses
 from utils.transforms import UnNormalize
-from evaluate import compute_errors
 from geometry.pose_geometry import *
 
 
@@ -60,7 +59,6 @@ class Trainer:
 
         # init models based on config
         self.depth_model = self.load_from_config(config, model_type='depth')
-        self.pose_model  = self.load_from_config(config, model_type='pose')
 
         if self.depth_model == None: # or self.pose_model == None:
             assert("Config file format is incorrect: Take a look at example \
@@ -69,11 +67,9 @@ class Trainer:
         # init model, weigths, and params
         # TODO: Check if this works
         parameters_train  = list(self.depth_model.parameters())
-        parameters_train += list(self.pose_model.parameters())
 
         # init optimiser and LR shcheduler
         self.model_optimizer = optim.Adam(parameters_train, self.learning_rate)
-        # self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
 
         # init losses and acc.
         self.criterion = Losses()
@@ -93,20 +89,17 @@ class Trainer:
 
         transform = [
             transforms.ToTensor(),
-            transforms.ToPILImage(),
-            transforms.Resize((384, 1280)), # packnet standard
-            transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ]
         
         # init dataset
-        self.dataset = UnSupKittiDataset(config, transforms=transform)
+        self.dataset = dino_dataset(transforms=transform)
 
         # create a dataset splits 
         random_seed      = config['action']['random_seed']
         validation_split = config['action']['split'][1]
 
-        self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
+        self.train_loader = self.create_loaders(random_seed, validation_split)
 
         # sample to test warp
         self.warp_sample = self.create_warp_sample()
@@ -128,7 +121,6 @@ class Trainer:
 
         self.checkpoint = { 'epoch': self.epoch, 
                             'dpth_mdl_state_dict': self.depth_model.state_dict(),
-                            'pose_mdl_state_dict': self.pose_model.state_dict(),
                             'optimizer_state_dict': self.model_optimizer.state_dict(),
                             'loss': self.loss,
                             'valid_acc': self.valid_acc
@@ -143,7 +135,6 @@ class Trainer:
         # find checkpoint and load model
         self.checkpoint = torch.load(self.save_path)
         self.depth_model.load_state_dict(self.checkpoint['dpth_mdl_state_dict'])
-        self.pose_model.load_state_dict(self.checkpoint['pose_mdl_state_dict'])
         self.model_optimizer.load_state_dict(self.checkpoint['optimizer_state_dict'])
         self.epoch = self.checkpoint['epoch']
         self.valid_acc = self.checkpoint['valid_acc']
@@ -166,26 +157,9 @@ class Trainer:
             model.init_weights()
         return model.to(self.device)
     
-    def create_loaders(self, random_seed, valid_split_ratio):
-        dataset_size = len(self.dataset)
-        indices      = list(range(dataset_size))
-        split    = int(np.floor(valid_split_ratio * dataset_size))
-
-        if self.shuffle_dataset :
-            np.random.seed(random_seed)
-            np.random.shuffle(indices)
-
-        train_indices, val_indices  = indices[split:], indices[:split]
-
-        # Creating PT data samplers and loaders:
-        train_sampler = SequentialIndicesSampler(train_indices)
-        valid_sampler = SequentialIndicesSampler(val_indices)
-
-        train_loader      = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
-                                           sampler=train_sampler, num_workers=self.num_workers)
-        validation_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size,
-                                            sampler=valid_sampler, num_workers=self.num_workers)
-        return train_loader, validation_loader
+    def create_loaders(self, random_seed=None, valid_split_ratio=None):
+        train_loader      = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+        return train_loader
 
     def set_train(self):
         self.depth_model.train()
@@ -265,6 +239,8 @@ class Trainer:
             if self.epoch < 1 and (batch_indx + 1) < 10000:
               self.log_warps(batch_indx)
 
+            break
+
             if self.MLOps:
 
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
@@ -285,46 +261,16 @@ class Trainer:
 
     def process_batch(self, samples, warp_test=False, semi_sup_pose=False):
         tgt        = samples['tgt'].to(self.device) # T(B, 3, H, W)
-        ref_imgs   = [img.to(self.device) for img in samples['ref_imgs']] # [T(B, 3, H, W), T(B, 3, H, W)]
-        intrinsics = samples['intrinsics'].to(self.device)
-        gt         = samples['groundtruth'].to(self.device)
+        ref_imgs   = samples['ref_imgs'].to(self.device)
 
         disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
 
         if semi_sup_pose:
-            poses_t_0 = samples["oxts"][0].unsqueeze(1)
-            poses_t_2 = samples["oxts"][1].unsqueeze(1)
-            poses     = torch.cat((poses_t_0, poses_t_2), 1).to(self.device)
-        else:
-            poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
+            poses = samples["oxts"].unsqueeze(1).to(self.device)
 
         if warp_test:
             return [disp, poses]
         else:
             # forward + backward 
-            loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
+            loss = self.criterion.forward(tgt, ref_imgs, disp, poses)
             return [disp, poses], loss
-    
-    @torch.no_grad()
-    def validate(self):
-
-        self.set_eval()
-
-        # calculate evaluation accuracy
-        # with torch.no_grad():
-        for batch_indx, samples in enumerate(self.validation_loader):
-            outputs, self.loss = self.process_batch(samples)
-            
-            # calculate the accuracy
-            gt = samples['groundtruth']
-
-            # compute_error
-            acc = compute_errors(gt, outputs[0])
-            
-            if self.MLOps:
-                wandb.log(acc, step=self.epoch)
-            
-
-            # compare againt checkpoint
-            # if abs_rel > self.valid_acc:
-            #     self.valid_acc = abs_rel
