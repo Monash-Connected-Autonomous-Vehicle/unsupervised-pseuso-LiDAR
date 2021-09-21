@@ -38,21 +38,29 @@ class Calibration():
         self.kitti_filepath = kitti_filepath
         calib_velo_to_cam = self.read_calib_file(kitti_filepath + "calib_velo_to_cam.txt")
         calib_cam_to_cam  = self.read_calib_file(kitti_filepath + "calib_cam_to_cam.txt")
-        calib_imu_to_velo = self.read_calib_file(kitti_filepath + "calib_imu_to_velo")
+        calib_imu_to_velo = self.read_calib_file(kitti_filepath + "calib_imu_to_velo.txt")
 
-        # camera intrinsics
+        # camera calibration
         self.K = calib_cam_to_cam["K_02"]
         
         # Projection matrix from rect camera coord to image2 coord
         self.P = calib_cam_to_cam["P_rect_02"].reshape(3, 4)
 
         # Rotation and Translation matrix (velodyne)
-        self.R = calib_velo_to_cam["R"].reshape(3, 3)
-        self.T = calib_velo_to_cam["T"].reshape(3, 1)
+        R = calib_velo_to_cam["R"].reshape(3, 3)
+        T = calib_velo_to_cam["T"].reshape(3, 1)
 
         # Rigid transform from Velodyne coord to reference camera coord
-        self.Tx = np.concatenate((self.R, self.T), axis = 1)
-        self.Tx = np.vstack([self.Tx, [0, 0, 0, 1]])
+        self.T_velo_cam = np.concatenate((R, T), axis = 1)
+        self.T_velo_cam = np.vstack([self.T_velo_cam, [0, 0, 0, 1]])
+
+        # Rotation and Translation matrix (velodyne)
+        R = calib_imu_to_velo["R"].reshape(3, 3)
+        T = calib_imu_to_velo["T"].reshape(3, 1)
+
+        # Rigid transform from Velodyne coord to reference camera coord
+        self.T_imu_velo = np.concatenate((R, T), axis = 1)
+        self.T_imu_velo = np.vstack([self.T_imu_velo, [0, 0, 0, 1]])
 
     def read_calib_file(self, filepath):
         """ Read in a calibration file and parse into a dictionary.

@@ -90,7 +90,20 @@ class KittiDataset(Dataset):
         intrinsics[1] *= self.img_height / og_h
         ret_sample['intrinsics'] = torch.from_numpy(intrinsics) 
         
-        ret_sample['oxts'] = sample['oxts']
+        # oxts packets to poses
+        oxts   = load_oxts_packets_and_poses(sample['oxts'])
+
+        # TODO: transform oxts pose from imu to cam coords
+        oxts[1] = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[1]
+        oxts[2] = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[2]
+
+        # convert poses from mat to euler 
+        poses  = [oxts[1], oxts[2]]
+        angles = [mat2euler(pose[:3,:3]) for pose in poses]
+        ts     = [pose[:3, 3] for pose in poses]
+
+        ret_sample['oxts'] = [torch.from_numpy(np.concatenate((np.array([0, 0, 0]), t))) for ang, t in zip(angles, ts)]
+
 
         ret_sample['groundtruth'], _, _ = self.load_img(sample['groundtruth'], gt=True)
 
@@ -128,7 +141,9 @@ class UnSupKittiDataset(KittiDataset):
 
             calib_dir = sample_dirs[0][:20] # mac - 20 , beauty - 29
             calib     = Calibration(calib_dir)
-            sample['intrinsics']  = calib.P.reshape(3, 4)[:, :3]
+            sample['intrinsics']  = calib.P[:, :3]
+            sample['imu_to_velo'] = calib.T_imu_velo
+            sample['velo_to_cam'] = calib.T_velo_cam
 
             oxts_lst = []
             for i in range(3):
@@ -139,18 +154,8 @@ class UnSupKittiDataset(KittiDataset):
                 oxts_dir = oxts_dir + '/oxts/data/' + img_indx + '.txt'
 
                 oxts_lst.append(oxts_dir)
-            
-            # oxts packets to poses
-            oxts   = load_oxts_packets_and_poses(oxts_lst)
 
-            # TODO: transform points from imu to cam coords
-
-            # convert poses from mat to euler 
-            poses  = [oxts[1], oxts[2]]
-            angles = [mat2euler(pose[:3,:3]) for pose in poses]
-            ts     = [pose[:3, 3] for pose in poses]
-        
-            sample['oxts'] = [torch.from_numpy(np.concatenate((np.array([0, 0, 0]), t))) for ang, t in zip(angles, ts)]
+            sample['oxts'] = oxts_lst
 
             sample['groundtruth'] = sample_dirs[3]
             

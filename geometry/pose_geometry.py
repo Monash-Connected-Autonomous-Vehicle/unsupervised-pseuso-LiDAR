@@ -90,7 +90,7 @@ def pose_vec2mat(vec, mode='euler'):
         raise ValueError('Rotation mode not supported {}'.format(mode))
     mat = torch.cat([rot_mat, trans], dim=2)  # [B,3,4]
     
-    return mat.type(torch.cuda.DoubleTensor)
+    return mat.float()
 
 def invert_pose(T):
     """Inverts a [B,4,4] torch.tensor pose"""
@@ -127,6 +127,6 @@ def inverse_warp(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros
 
     src_pixel_coords = warper.project(cam_coords, K, pose_mat)  # [B,H,W,2]
 
-    projected_img = F.grid_sample(img.type(torch.cuda.DoubleTensor), src_pixel_coords, mode='bilinear', padding_mode=padding_mode, align_corners=True)
+    projected_img = F.grid_sample(img, src_pixel_coords, mode='bilinear', padding_mode=padding_mode, align_corners=True)
     
     return projected_img
