@@ -43,8 +43,10 @@ class Calibration():
         # camera calibration
         self.K = calib_cam_to_cam["K_02"]
         
-        # Projection matrix from rect camera coord to image2 coord
-        self.P = calib_cam_to_cam["P_rect_02"].reshape(3, 4)
+        # Projection matrix from rect camera coord to image2 coord 
+        self.P      = calib_cam_to_cam["P_rect_02"].reshape(3, 4)
+        self.R_rect = calib_cam_to_cam["R_rect_02"].reshape(3, 3)
+
 
         # Rotation and Translation matrix (velodyne)
         R = calib_velo_to_cam["R"].reshape(3, 3)

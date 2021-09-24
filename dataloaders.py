@@ -93,17 +93,22 @@ class KittiDataset(Dataset):
         # oxts packets to poses
         oxts   = load_oxts_packets_and_poses(sample['oxts'])
 
-        # TODO: transform oxts pose from imu to cam coords
-        oxts[1] = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[1]
-        oxts[2] = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[2]
-
+        # transform oxts pose from imu to cam coords
+        origin = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[0] # origin: t
+        t_0    = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[1] # t - 1
+        t_2    = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[2] # t + 1
+        
         # convert poses from mat to euler 
-        poses  = [oxts[1], oxts[2]]
-        angles = [mat2euler(pose[:3,:3]) for pose in poses]
-        ts     = [pose[:3, 3] for pose in poses]
+        poses  = [t_0, t_2]
+        angles = [mat2euler(pose[:3,:3]) for pose in poses] # TODO: rotation relative
+        ts     = [pose[:3, 3] - origin[:3, 3] for pose in poses]
 
         ret_sample['oxts'] = [torch.from_numpy(np.concatenate((np.array([0, 0, 0]), t))) for ang, t in zip(angles, ts)]
 
+        # TODO: For testing purposes 
+        # ret_sample['velo_to_cam'] = sample['velo_to_cam']
+        # ret_sample['imu_to_velo'] = sample['imu_to_velo']
+        # ret_sample['rect']  = sample['rect'] 
 
         ret_sample['groundtruth'], _, _ = self.load_img(sample['groundtruth'], gt=True)
 
@@ -144,6 +149,7 @@ class UnSupKittiDataset(KittiDataset):
             sample['intrinsics']  = calib.P[:, :3]
             sample['imu_to_velo'] = calib.T_imu_velo
             sample['velo_to_cam'] = calib.T_velo_cam
+            sample['rect']        = calib.R_rect
 
             oxts_lst = []
             for i in range(3):
