@@ -125,24 +125,18 @@ class Transform():
         #collect rot and trans matrix
         rot   = Tcw[:, :, :3]
         trans = Tcw[:, :, -1:]
-        
+
         # transform each poin
-        Xc = rot.type(torch.cuda.DoubleTensor) @ Xc.type(torch.cuda.DoubleTensor)
-        Xc = Xc + trans.type(torch.cuda.DoubleTensor)
-        Xc = K.type(torch.cuda.DoubleTensor) @ Xc
-    
+        Xc = rot.float() @ Xc.float() 
+        Xc = Xc + trans.float() 
+        Xc = K.float()  @ Xc
+
         # Normalize points
         X = Xc[:, 0]
         Y = Xc[:, 1]
         Z = Xc[:, 2].clamp(min=1e-5)
         Xnorm = 2 * (X / Z) / (W - 1) - 1.
         Ynorm = 2 * (Y / Z) / (H - 1) - 1.
-
-        # Clamp out-of-bounds pixels
-        # Xmask = ((Xnorm > 1) + (Xnorm < -1)).detach()
-        # Xnorm[Xmask] = 2.
-        # Ymask = ((Ynorm > 1) + (Ynorm < -1)).detach()
-        # Ynorm[Ymask] = 2.
 
         # Return pixel coordinates
         return torch.stack([Xnorm, Ynorm], dim=-1).view(B, H, W, 2)
