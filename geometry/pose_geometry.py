@@ -106,7 +106,7 @@ def invert_pose_np(T):
     Tinv[:3, :3], Tinv[:3, 3] = R.T, - np.matmul(R.T, t)
     return Tinv
 
-def inverse_warp(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros'):
+def inverse(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros'):
     """
     Inverse warp a source image to the target image plane.
     Args:

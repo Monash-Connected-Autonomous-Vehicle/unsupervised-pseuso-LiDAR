@@ -25,6 +25,7 @@ from losses import Losses
 from utils.transforms import UnNormalize
 from evaluate import compute_errors
 from geometry.pose_geometry import *
+from geometry.warp import inverse_warp
 
 
 class SequentialIndicesSampler(Sampler):
@@ -109,7 +110,7 @@ class Trainer:
         self.train_loader, self.validation_loader = self.create_loaders(random_seed, validation_split)
 
         # sample to test warp
-        # self.warp_sample = self.create_warp_sample()
+        self.warp_sample = self.create_warp_sample()
 
         # Start a new run, tracking hyperparameters in config
         if self.MLOps:
@@ -213,8 +214,8 @@ class Trainer:
         self.set_eval()
 
         # pass through model
-        outputs = self.process_batch(self.warp_sample, warp_test=True, semi_sup_pose=True)
-        depth   = disp_to_depth(outputs[0][0])
+        outputs = self.process_batch(self.warp_sample, warp_test=True, semi_sup_pose=False)
+        depth   = disp_to_depth(outputs[0][0]).squeeze()
 
         poses   = outputs[1]
         poses   = poses[:, 0, :]
@@ -226,13 +227,14 @@ class Trainer:
         projected_img = inverse_warp(ref_imgs[0], depth, poses, intrinsics)[1]
         projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
         projected_img = 0.5 + (projected_img * 0.5) # remove normalization
+        print(projected_img.shape)
 
         d = depth[0][0].cpu().detach().numpy()
 
         warp_file_name = './images/warping/' + str(indx) + '.png'
-        depth_name = './images/depth/' + str(indx) + '.png'
+        #depth_name = './images/depth/' + str(indx) + '.png'
         plt.imsave(warp_file_name, projected_img)
-        plt.imsave(depth_name, d)
+        #plt.imsave(depth_name, d)
 
         self.set_train()
 

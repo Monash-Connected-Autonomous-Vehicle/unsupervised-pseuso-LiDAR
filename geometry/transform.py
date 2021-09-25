@@ -93,8 +93,6 @@ class Transform():
         # Create flat index grid
         grid = self.image_grid(B, H, W, depth.dtype, depth.device, normalized=False)  # [B,3,H,W]
         flat_grid = grid.view(B, 3, -1)  # [B,3,HW]
-        print('flat grid')
-        print(flat_grid)
 
         # Estimate the outward rays in the camera frame
         xnorm = (Kinv.bmm(flat_grid))

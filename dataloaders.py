@@ -115,11 +115,6 @@ class KittiDataset(Dataset):
 
         ret_sample['oxts'] = [torch.from_numpy(np.concatenate((np.array([0, 0, 0]), t))) for ang, t in zip(angles, ts)]
 
-        # TODO: For testing purposes 
-        # ret_sample['velo_to_cam'] = sample['velo_to_cam']
-        # ret_sample['imu_to_velo'] = sample['imu_to_velo']
-        # ret_sample['rect']  = sample['rect'] 
-
         ret_sample['groundtruth'], _, _ = self.load_img(sample['groundtruth'], gt=True)
 
         return ret_sample
@@ -154,7 +149,7 @@ class UnSupKittiDataset(KittiDataset):
             sample['tgt']      = sample_dirs[0]
             sample['ref_imgs'] = sample_dirs[1:3]
 
-            calib_dir = sample_dirs[0][:20] # mac - 20 , beauty - 29
+            calib_dir = sample_dirs[0][:29] # mac - 20 , beauty - 29
             calib     = Calibration(calib_dir)
             sample['intrinsics']  = calib.P[:, :3]
             sample['imu_to_cam'] = calib.R_rect @ calib.T_velo_cam @ calib.T_imu_velo 
@@ -164,7 +159,7 @@ class UnSupKittiDataset(KittiDataset):
                 oxts_dir = sample_dirs[i]
 
                 img_indx = oxts_dir[-14:-4]
-                oxts_dir = oxts_dir[0:46] # mac - 46, beauty - 55
+                oxts_dir = oxts_dir[0:55] # mac - 46, beauty - 55
                 oxts_dir = oxts_dir + '/oxts/data/' + img_indx + '.txt'
 
                 oxts_lst.append(oxts_dir)

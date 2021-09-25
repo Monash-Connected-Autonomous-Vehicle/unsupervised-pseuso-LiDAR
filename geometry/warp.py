@@ -172,12 +172,12 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
     pose_mat = pose_vec2mat(pose, rotation_mode)  # [B,3,4]
 
     # Get projection matrix for tgt camera frame to source pixel frame
-    proj_cam_to_src_pixel = intrinsics @ pose_mat  # [B, 3, 4]
+    proj_cam_to_src_pixel = intrinsics.double() @ pose_mat.double()  # [B, 3, 4]
 
     rot, tr = proj_cam_to_src_pixel[..., :3], proj_cam_to_src_pixel[..., -1:]
     src_pixel_coords = cam2pixel(cam_coords, rot, tr)  # [B,H,W,2]
-    projected_img = F.grid_sample(img, src_pixel_coords, padding_mode=padding_mode, align_corners=True)
+    projected_img = F.grid_sample(img.double(), src_pixel_coords, padding_mode=padding_mode, align_corners=True)
 
     valid_points = src_pixel_coords.abs().max(dim=-1)[0] <= 1
 
-    return projected_img, valid_points
+    return projected_img

@@ -5,7 +5,8 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import cv2
 
-from geometry.pose_geometry import inverse_warp, disp_to_depth
+from geometry.pose_geometry import disp_to_depth
+from geometry.warp import inverse_warp
 from utils.transforms import UnNormalize
 
 class SSIM:
@@ -64,6 +65,7 @@ class Losses:
     def compute_photometric_loss(self, pred, target, no_ssim=False):
         """Computes reprojection loss between a batch of predicted and target images
         """
+
         l1_loss = torch.abs(target - pred)
         # l1_loss  = abs_diff.mean(1, True).squeeze().mean(-1).mean(-1) # pytorch multidim reduce issue
 
@@ -161,11 +163,13 @@ class Losses:
     def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics, gt):
         
         # project dept to 3D
-        depth = disp_to_depth(disparity[0])
+        depth = disp_to_depth(disparity[0]).squeeze()
 
         loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='mse')
+        '''
         loss_smooth = self.smooth_loss(depth)
-        return [loss_mam, loss_smooth]
+        '''
+        return [loss_mam]
 
     
 
