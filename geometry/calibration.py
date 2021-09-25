@@ -45,7 +45,10 @@ class Calibration():
         
         # Projection matrix from rect camera coord to image2 coord 
         self.P      = calib_cam_to_cam["P_rect_02"].reshape(3, 4)
-        self.R_rect = calib_cam_to_cam["R_rect_02"].reshape(3, 3)
+
+        # rect mat
+        R_rect = calib_cam_to_cam["R_rect_02"].reshape(3, 3)
+        self.R_rect = self.transform_from_rot_trans(R_rect, np.zeros(3))
 
 
         # Rotation and Translation matrix (velodyne)
@@ -84,3 +87,21 @@ class Calibration():
                     pass
 
         return data
+    
+    def transform_from_rot_trans(self, R, t):
+        """
+        Transformation matrix from rotation matrix and translation vector.
+        Parameters
+        ----------
+        R : np.array [3,3]
+            Rotation matrix
+        t : np.array [3]
+            translation vector
+        Returns
+        -------
+        matrix : np.array [4,4]
+            Transformation matrix
+        """
+        R = R.reshape(3, 3)
+        t = t.reshape(3, 1)
+        return np.vstack((np.hstack([R, t]), [0, 0, 0, 1]))

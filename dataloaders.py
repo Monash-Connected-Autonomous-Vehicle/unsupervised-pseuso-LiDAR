@@ -30,11 +30,12 @@ class KittiDataset(Dataset):
         self.samples = []
 
     def load_img(self, path, gt=False):
-        img = np.asarray(Image.open(path), dtype=np.float32) / 255.0
+        img = np.asarray(Image.open(path), dtype=np.float32)
 
         h = None
         w = None
         if not gt:
+            img = img / 255.0
             h = img.shape[0]
             w = img.shape[1]
 
@@ -60,6 +61,12 @@ class KittiDataset(Dataset):
             window.append(item)
         if window:  
             yield list(window)
+    
+    def get_odo_pose(self, origin_pose, pose, imu2cam):
+        odo_pose = (imu2cam @ np.linalg.inv(origin_pose) @
+                    pose @ np.linalg.inv(imu2cam))
+
+        return odo_pose
     
     def __len__(self):
         return len(self.samples)
@@ -94,14 +101,17 @@ class KittiDataset(Dataset):
         oxts   = load_oxts_packets_and_poses(sample['oxts'])
 
         # transform oxts pose from imu to cam coords
-        origin = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[0] # origin: t
-        t_0    = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[1] # t - 1
-        t_2    = sample['velo_to_cam'] @ sample['imu_to_velo'] @ oxts[2] # t + 1
+        # origin = oxts[0] # origin: t
+        # t_0    = oxts[1] # t - 1
+        # t_2    = oxts[2] # t + 1
         
+        t_0 = self.get_odo_pose(oxts[0], oxts[1], sample['imu_to_cam'])
+        t_2 = self.get_odo_pose(oxts[0], oxts[2], sample['imu_to_cam'])
+
         # convert poses from mat to euler 
         poses  = [t_0, t_2]
         angles = [mat2euler(pose[:3,:3]) for pose in poses] # TODO: rotation relative
-        ts     = [pose[:3, 3] - origin[:3, 3] for pose in poses]
+        ts     = [pose[:3, 3] for pose in poses]
 
         ret_sample['oxts'] = [torch.from_numpy(np.concatenate((np.array([0, 0, 0]), t))) for ang, t in zip(angles, ts)]
 
@@ -147,9 +157,7 @@ class UnSupKittiDataset(KittiDataset):
             calib_dir = sample_dirs[0][:20] # mac - 20 , beauty - 29
             calib     = Calibration(calib_dir)
             sample['intrinsics']  = calib.P[:, :3]
-            sample['imu_to_velo'] = calib.T_imu_velo
-            sample['velo_to_cam'] = calib.T_velo_cam
-            sample['rect']        = calib.R_rect
+            sample['imu_to_cam'] = calib.R_rect @ calib.T_velo_cam @ calib.T_imu_velo 
 
             oxts_lst = []
             for i in range(3):
