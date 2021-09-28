@@ -165,6 +165,8 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
     check_sizes(pose, 'pose', 'B6')
     check_sizes(intrinsics, 'intrinsics', 'B33')
 
+    print('not my func', img.shape)
+
     batch_size, _, img_height, img_width = img.size()
 
     cam_coords = pixel2cam(depth, intrinsics.inverse())  # [B,3,H,W]

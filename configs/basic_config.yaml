@@ -1,5 +1,5 @@
 model:
-    name: 'generic_sfm'
+    name: 'trained'
     depth:
         name: 'DispNetS'
         file: 'disp_net'
