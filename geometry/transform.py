@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from numpy.core.numeric import identity
 import torch
 import torch.nn.functional as F
 
@@ -103,6 +104,13 @@ class Transform():
 
         return Xc
 
+    def k_hom(self, K):
+        K_hom = torch.eye(4)
+        K_hom = K_hom.reshape((1, 4, 4))
+        K_hom = K_hom.repeat(4, 1, 1).to(device=K.device)
+        K_hom[:, :3, :3] = K.clone()
+        return K_hom
+
     def project(self, X, K, Tcw):
         """
         Projects 3D points onto the image plane
@@ -120,26 +128,26 @@ class Transform():
         B, C, H, W = X.shape
         
         # flatten camera coords
-        Xc = X.view(B, 3, -1)
+        Xc   = X.view(B, 3, -1)
+
+        #test
+        ones   = torch.ones(1, Xc.shape[-1]).repeat(B, 1, 1).cuda()
+        Xc_hom = torch.cat([Xc, ones], 1)
+
+        K_hom = self.k_hom(K)
+
+        Tx = (K_hom @ Tcw)[:, :3, :]
+
+        cam_points = Tx @ Xc_hom
+    
+        pix_coords = cam_points[:, :2, :] / (cam_points[:, 2, :].unsqueeze(1) + 1e-5)
+        pix_coords = pix_coords.view(B, 2, H, W)
+        pix_coords = pix_coords.permute(0, 2, 3, 1)
+        pix_coords[..., 0] /= W - 1
+        pix_coords[..., 1] /= H - 1
+        pix_coords = (pix_coords - 0.5) * 2
         
-        #collect rot and trans matrix
-        rot   = Tcw[:, :, :3]
-        trans = Tcw[:, :, -1:]
-
-        # transform each poin
-        Xc = rot.float() @ Xc.float() 
-        Xc = Xc + trans.float() 
-        Xc = K.float()  @ Xc
-
-        # Normalize points
-        X = Xc[:, 0]
-        Y = Xc[:, 1]
-        Z = Xc[:, 2].clamp(min=1e-5)
-        Xnorm = 2 * (X / Z) / (W - 1) - 1.
-        Ynorm = 2 * (Y / Z) / (H - 1) - 1.
-
-        # Return pixel coordinates
-        return torch.stack([Xnorm, Ynorm], dim=-1).view(B, H, W, 2)
+        return pix_coords
 
         
         

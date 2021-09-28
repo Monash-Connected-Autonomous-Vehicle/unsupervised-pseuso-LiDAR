@@ -5,8 +5,8 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import cv2
 
-from geometry.pose_geometry import disp_to_depth
-from geometry.warp import inverse_warp
+from geometry.pose_geometry import inverse_warp, disp_to_depth
+
 from utils.transforms import UnNormalize
 
 class SSIM:
@@ -104,6 +104,15 @@ class Losses:
 
             plt.imshow(arr)
             plt.show()
+        
+        def save_img(proj_img):
+            img = proj_img.clone()
+            img = img.cpu().detach().numpy()
+            img = np.transpose(img, (1, 2, 0))
+            img = 0.5 + (0.5 * img)
+            plt.imsave('./images/warping/0.png', img)
+
+        depth = depth.squeeze()
 
         # split poses
         poses_t_0 = poses[:, 0, :]
@@ -112,6 +121,7 @@ class Losses:
         
         # inverse warp from 
         projected_imgs = [inverse_warp(ref_img, depth, pose, intrinsics) for ref_img, pose in zip(ref_imgs, poses)]
+        save_img(projected_imgs[0][0])
 
         # reprojection between projected and target
         reprojection_losses = [self.compute_photometric_loss(proj_img, tgt_img) for proj_img in projected_imgs]
@@ -163,13 +173,13 @@ class Losses:
     def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics, gt):
         
         # project dept to 3D
-        depth = disp_to_depth(disparity[0]).squeeze()
+        depth = disp_to_depth(disparity[0])
 
         loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='mse')
-        '''
+
         loss_smooth = self.smooth_loss(depth)
-        '''
-        return [loss_mam]
+
+        return [loss_mam, loss_smooth]
 
     
 

@@ -25,7 +25,6 @@ from losses import Losses
 from utils.transforms import UnNormalize
 from evaluate import compute_errors
 from geometry.pose_geometry import *
-from geometry.warp import inverse_warp
 
 
 class SequentialIndicesSampler(Sampler):
@@ -227,7 +226,6 @@ class Trainer:
         projected_img = inverse_warp(ref_imgs[0], depth, poses, intrinsics)[1]
         projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
         projected_img = 0.5 + (projected_img * 0.5) # remove normalization
-        print(projected_img.shape)
 
         d = depth[0][0].cpu().detach().numpy()
 
@@ -255,22 +253,23 @@ class Trainer:
     def run_epoch(self):
 
         # process batch
-        for batch_indx, samples in tqdm(enumerate(self.train_loader), unit='images',
-                                        total=len(self.train_loader), desc=f"Epoch {self.epoch} BATCH"):
+        for batch_indx, samples in tqdm(enumerate(self.train_loader), unit='image',
+                                        total=len(self.train_loader), desc=f"Epoch: {self.epoch} BATCH "):
 
             self.model_optimizer.zero_grad()
             
             outputs, self.loss = self.process_batch(samples, semi_sup_pose=False)
             sum(self.loss).backward()
+            print('LOSS ', float(sum(self.loss).cpu().detach().numpy()))
             self.model_optimizer.step() 
 
-            if self.epoch < 1 and (batch_indx + 1) < 10000:
+            if self.epoch < 1 and (batch_indx + 1) < 100:
               self.log_warps(batch_indx)
 
             if self.MLOps:
 
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
-                        "smoothness_loss":self.loss[1]})
+                        "smoothness_loss": self.loss[1]})
                 
                 if (batch_indx + 1) % self.log_freq == 0:
                     self.log_depth_predictions(samples, outputs)
