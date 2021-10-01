@@ -24,7 +24,7 @@ def conv_gn(in_planes, out_planes, kernel_size=3):
     return nn.Sequential(
         nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
                   padding=(kernel_size - 1) // 2, stride=2),
-        nn.GroupNorm(16, out_planes),
+        #nn.GroupNorm(16, out_planes),
         nn.ReLU(inplace=True)
     )
 
@@ -71,9 +71,7 @@ class PoseNet(nn.Module):
         pose = self.pose_pred(out_conv7)
         pose = pose.mean(3).mean(2)
         
-        pose = 0.0015 * pose.view(pose.size(0), self.nb_ref_imgs, 6)
-        pose[:, :, :3] = 0 
-
-        print(pose.shape)
+        pose = 0.06 * pose.view(pose.size(0), self.nb_ref_imgs, 6)
+        # pose[:, :, :3] = 0 
 
         return pose

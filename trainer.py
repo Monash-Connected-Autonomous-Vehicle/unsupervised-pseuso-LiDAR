@@ -227,12 +227,12 @@ class Trainer:
         projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
         projected_img = 0.5 + (projected_img * 0.5) # remove normalization
 
-        d = depth[0][0].cpu().detach().numpy()
+        d = depth[1].cpu().detach().numpy()
 
         warp_file_name = './images/warping/' + str(indx) + '.png'
-        #depth_name = './images/depth/' + str(indx) + '.png'
+        depth_name = './images/depth/'+ str(indx)  + '.png'
         plt.imsave(warp_file_name, projected_img)
-        #plt.imsave(depth_name, d)
+        plt.imsave(depth_name, d)
 
         self.set_train()
 
@@ -260,10 +260,9 @@ class Trainer:
             
             outputs, self.loss = self.process_batch(samples, semi_sup_pose=False)
             sum(self.loss).backward()
-            print('LOSS ', float(sum(self.loss).cpu().detach().numpy()))
             self.model_optimizer.step() 
 
-            if self.epoch < 1 and (batch_indx + 1) < 100:
+            if self.epoch < 1 and (batch_indx + 1) < 10000:
               self.log_warps(batch_indx)
 
             if self.MLOps:
