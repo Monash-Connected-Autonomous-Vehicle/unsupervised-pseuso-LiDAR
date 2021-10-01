@@ -5,12 +5,12 @@ model:
         file: 'disp_net'
         version: '1'
     pose:
-        name: 'PoseNet'
-        file: 'pose_net'
+        name: 'PoseFc'
+        file: 'pose_fc'
         version: '1'
 datasets:
     path: '../KITTI/'
-    split: './splits/kitti_depth_annotated_train_files.txt'
+    split: './splits/kitti_ext.txt'
     augmentation:
         image_width: 1280
         image_height: 384

@@ -172,7 +172,7 @@ class Losses:
 
     def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics, gt):
         
-        # project dept to 3D
+        # create depth from disparity
         depth = disp_to_depth(disparity[0])
 
         loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='mse')
