@@ -105,7 +105,7 @@ class StnDispNet(nn.Module):
 
     def forward(self, x):
         # transform the input
-        x = self.stn(x)
+        #x = self.stn(x)
         
         out = self.conv1(x)
         out = self.conv2(out)

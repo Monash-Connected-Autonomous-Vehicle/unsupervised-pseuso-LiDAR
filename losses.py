@@ -113,6 +113,7 @@ class Losses:
             plt.imsave('./images/warping/0.png', img)
 
         depth = depth.squeeze()
+        #depth = depth * self.create_mul_mask(depth)
 
         # split poses
         poses_t_0 = poses[:, 0, :]
@@ -124,15 +125,16 @@ class Losses:
         save_img(projected_imgs[0][0])
 
         # reprojection between projected and target
-        reprojection_losses = [self.compute_photometric_loss(proj_img, tgt_img) for proj_img in projected_imgs]
+        reprojection_losses = [self.compute_photometric_loss(proj_img, tgt_img, no_ssim=True) for proj_img in projected_imgs]
 
         # reprojection between reference and target
         automasking_loss = [self.compute_photometric_loss(ref_img, tgt_img) for ref_img in ref_imgs]
 
         if mode == 'min':
             # element-wise minimum
-            min_rpl      = torch.minimum(reprojection_losses[0], reprojection_losses[1])
+            min_rpl           = torch.minimum(reprojection_losses[0], reprojection_losses[1])
             min_automask_loss = torch.minimum(automasking_loss[0], automasking_loss[1])
+            mean_rpl          = torch.mean(torch.stack(reprojection_losses))
             
             # binary automask
             mu = torch.where(min_rpl < min_automask_loss, torch.tensor([1.]).cuda(), torch.tensor([0.]).cuda())
@@ -142,7 +144,7 @@ class Losses:
       
             batch_multiview_loss = reduce_loss(min_rpl) # mu * min_rpl for mask
 
-            return batch_multiview_loss.mean()
+            return mean_rpl # batch_multiview_loss.mean()
         elif mode == 'mse':
             mse_loss  = self.L2(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
             mse_loss += self.L2(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
@@ -170,12 +172,25 @@ class Losses:
             weight /= 2.3  # don't ask me why it works better
         return loss
 
+    def create_mul_mask(self, tensor):
+    
+        mul_mask = torch.ones_like(tensor)
+        
+        C, H, W     = mul_mask.shape
+        c_h, c_w = H//2, W//2
+        
+        mul_mask[:, c_h-150:c_h+150, c_w-500:c_w+500] = 2
+        mul_mask[:, c_h-100:c_h+100, c_w-300:c_w+300] = 5
+        mul_mask[:, c_h-50:c_h+50, c_w-100:c_w+100]   = 10
+        
+        return mul_mask
+
     def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics, gt):
         
         # create depth from disparity
         depth = disp_to_depth(disparity[0])
 
-        loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='mse')
+        loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='min')
 
         loss_smooth = self.smooth_loss(depth)
 

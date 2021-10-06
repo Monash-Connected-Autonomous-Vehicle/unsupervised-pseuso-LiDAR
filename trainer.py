@@ -229,8 +229,8 @@ class Trainer:
 
         d = depth[1].cpu().detach().numpy()
 
-        warp_file_name = './images/warping/' + str(indx) + '.png'
-        depth_name = './images/depth/'+ str(indx)  + '.png'
+        warp_file_name = './images/warping/1'+ '.png'
+        depth_name = './images/depth/0'+ '.png'
         plt.imsave(warp_file_name, projected_img)
         plt.imsave(depth_name, d)
 
@@ -264,6 +264,7 @@ class Trainer:
 
             if self.epoch < 1 and (batch_indx + 1) < 10000:
               self.log_warps(batch_indx)
+            
 
             if self.MLOps:
 
@@ -303,6 +304,7 @@ class Trainer:
         else:
             # forward + backward 
             loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
+            print(sum(loss))
             return [disp, poses], loss
     
     @torch.no_grad()
