@@ -45,10 +45,7 @@ class PoseFc(nn.Module):
         )
         
         self.init_weights()
-        
-        # set identity for pose
-        # Initialize the weights/bias
-        # self.fc_loc[-1].weight.data.zero_()
+
         
     def init_weights(self):
         for m in self.modules():
@@ -58,6 +55,10 @@ class PoseFc(nn.Module):
                     zeros_(m.bias)
             elif isinstance(m, nn.Linear):
                 constant_(m.bias, 0)
+        
+        # set identity for pose
+        # Initialize the weights/bias
+        self.fc_loc[-1].weight.data.zero_()
 
     def forward(self, target_image, ref_imgs):
         assert(len(ref_imgs) == self.nb_ref_imgs)

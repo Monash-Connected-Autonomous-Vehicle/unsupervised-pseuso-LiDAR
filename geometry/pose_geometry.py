@@ -67,16 +67,24 @@ def euler2mat(angle):
     rot_mat = xmat.bmm(ymat).bmm(zmat)
     return rot_mat
 
-def disp_to_depth(disp, min_depth=0.1, max_depth=120.0):
+def disp_to_depth(disp):
         """Convert network's sigmoid output into depth prediction
         The formula for this conversion is given in the 'additional considerations'
         section of the paper.
         """
-        min_disp = 1 / max_depth
-        max_disp = 1 / min_depth
 
-        scaled_disp = min_disp + (max_disp - min_disp) * disp
-        depth = 1 / scaled_disp
+        depth = 1 / disp
+
+        # divide by mean to normalise
+        '''
+        depth = depth.view(C, -1)
+        per_sample_mean = depth.mean(1)
+        per_sample_mean = per_sample_mean.unsqueeze(1)
+        
+        depth = depth.div(per_sample_mean)
+        depth = depth.reshape(C, B, H, W)
+        '''
+
         return depth
 
 def pose_vec2mat(vec, mode='euler'):
