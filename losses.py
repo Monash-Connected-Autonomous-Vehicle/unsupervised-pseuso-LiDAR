@@ -58,6 +58,7 @@ class Losses:
     def __init__(self):
         self.SSIM = SSIM()
         self.L2   = nn.MSELoss()
+        self.L1   = nn.L1Loss()
 
         self.unnormalize  =  UnNormalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         self.clip_loss = 0.5
@@ -109,7 +110,7 @@ class Losses:
             img = proj_img.clone()
             img = img.cpu().detach().numpy()
             img = np.transpose(img, (1, 2, 0))
-            img = 0.5 + (0.5 * img)
+            img = 0.44 + (0.2 * img)
             plt.imsave('./images/warping/0.png', img)
 
         depth = depth.squeeze()
@@ -122,7 +123,7 @@ class Losses:
         
         # inverse warp from 
         projected_imgs = [inverse_warp(ref_img, depth, pose, intrinsics) for ref_img, pose in zip(ref_imgs, poses)]
-        save_img(projected_imgs[0][0])
+        #save_img(projected_imgs[0][0])
 
         # reprojection between projected and target
         reprojection_losses = [self.compute_photometric_loss(proj_img, tgt_img, no_ssim=True) for proj_img in projected_imgs]
@@ -143,12 +144,16 @@ class Losses:
             # plot_mask(mu, min_rpl)
       
             batch_multiview_loss = reduce_loss(min_rpl) # mu * min_rpl for mask
-
-            return mean_rpl # batch_multiview_loss.mean()
+    
+            return batch_multiview_loss.mean()
         elif mode == 'mse':
             mse_loss  = self.L2(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
             mse_loss += self.L2(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
             return mse_loss / 2.0
+        elif mode == 'l1':
+            l1_loss  = self.L1(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+            l1_loss += self.L1(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+            return l1_loss / 2.0
         else:
             assert("different losses not implmented")
 

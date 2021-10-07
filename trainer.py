@@ -73,7 +73,7 @@ class Trainer:
 
         # init optimiser and LR shcheduler
         self.model_optimizer = optim.Adam(parameters_train, self.learning_rate)
-        # self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
+        self.model_lr_scheduler = optim.lr_scheduler.StepLR(self.model_optimizer, self.scheduler_step_size, self.gamma)
 
         # init losses and acc.
         self.criterion = Losses()
@@ -96,7 +96,7 @@ class Trainer:
             transforms.ToPILImage(),
             transforms.Resize((384, 1280)), # packnet standard
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
             ]
         
         # init dataset
@@ -162,7 +162,7 @@ class Trainer:
                 model = obj
 
         model = model()
-        if self.train_from_scratch:
+        if self.train_from_scratch and model_type != 'depth':
             model.init_weights()
         return model.to(self.device)
     
@@ -225,7 +225,7 @@ class Trainer:
         # create warp
         projected_img = inverse_warp(ref_imgs[0], depth, poses, intrinsics)[1]
         projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
-        projected_img = 0.5 + (projected_img * 0.5) # remove normalization
+        projected_img =  0.449 + (projected_img * 0.2) # remove normalization
 
         d = depth[1].cpu().detach().numpy()
 
@@ -244,7 +244,6 @@ class Trainer:
         # run epoch
         for self.epoch in range(self.num_epochs):
             self.run_epoch()
-            break
         
         if self.MLOps:
             # log predictions table to wandb
@@ -262,8 +261,8 @@ class Trainer:
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
-            if self.epoch < 1 and (batch_indx + 1) < 10000:
-              self.log_warps(batch_indx)
+            if (batch_indx + 1) % 500 == 0:
+                self.log_warps(batch_indx)
             
 
             if self.MLOps:
@@ -276,7 +275,7 @@ class Trainer:
                     # self.log_warps(batch_indx)
             
 
-        # self.model_lr_scheduler.step()
+        self.model_lr_scheduler.step()
 
         # validate after each epoch
         # self.validate()

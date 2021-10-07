@@ -1,8 +1,8 @@
 model:
-    name: 'trained'
+    name: 'test'
     depth:
-        name: 'DispNetS'
-        file: 'disp_net'
+        name: 'DispResNet'
+        file: 'resnet_dispnet'
         version: '1'
     pose:
         name: 'PoseFc'
@@ -19,13 +19,13 @@ datasets:
     dataset: ['KITTI']
 action:
     mode : 'train'
-    MLOps: False
+    MLOps: True
     log_freq: 100
     from_scratch : True
     split: [0.8, 0.2]
     random_seed : 42
     batch_size: 4
-    num_epochs: 1
+    num_epochs: 30
     num_workers: 8
     optimizer:
         name: 'Adam'
