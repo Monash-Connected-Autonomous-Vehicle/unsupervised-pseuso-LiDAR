@@ -104,4 +104,4 @@ class DispResNet(nn.Module):
     def forward(self, x):
         features = self.encoder(x)
         output   = self.decoder(features)
-        return [output[('disp', 0)]]
+        return [output[('disp', 0)], output[('disp', 1)], output[('disp', 2)], output[('disp', 3)],]

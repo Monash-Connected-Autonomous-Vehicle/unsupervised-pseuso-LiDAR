@@ -214,16 +214,16 @@ class Trainer:
 
         # pass through model
         outputs = self.process_batch(self.warp_sample, warp_test=True, semi_sup_pose=False)
-        depth   = disp_to_depth(outputs[0][0]).squeeze()
+        depth   = disp_to_depth([outputs[0][0]])[0].squeeze()
 
         poses   = outputs[1]
-        poses   = poses[:, 0, :]
+        poses   = poses[:, 1, :]
 
         ref_imgs   = [ref_img.to(self.device) for ref_img in self.warp_sample['ref_imgs']]
         intrinsics = self.warp_sample['intrinsics'].to(self.device)
 
         # create warp
-        projected_img = inverse_warp(ref_imgs[0], depth, poses, intrinsics)[1]
+        projected_img = inverse_warp(ref_imgs[1], depth, poses, intrinsics)[1]
         projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
         projected_img =  0.449 + (projected_img * 0.2) # remove normalization
 
@@ -261,7 +261,7 @@ class Trainer:
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
-            if (batch_indx + 1) % 500 == 0:
+            if (batch_indx + 1):
                 self.log_warps(batch_indx)
             
 
@@ -270,8 +270,8 @@ class Trainer:
                 wandb.log({"loss":sum(self.loss), "mul_app_loss": self.loss[0], \
                         "smoothness_loss": self.loss[1]})
                 
-                if (batch_indx + 1) % self.log_freq == 0:
-                    self.log_depth_predictions(samples, outputs)
+                # if (batch_indx + 1) % self.log_freq == 0:
+                    # self.log_depth_predictions(samples, outputs)
                     # self.log_warps(batch_indx)
             
 
@@ -303,7 +303,6 @@ class Trainer:
         else:
             # forward + backward 
             loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
-            print(sum(loss))
             return [disp, poses], loss
     
     @torch.no_grad()

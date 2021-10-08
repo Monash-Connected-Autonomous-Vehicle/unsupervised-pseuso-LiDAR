@@ -72,8 +72,11 @@ def disp_to_depth(disp):
         The formula for this conversion is given in the 'additional considerations'
         section of the paper.
         """
-        disp  = 10 * disp + 0.01  
-        depth = 1 / disp
+
+        depth = []
+        for d in disp:
+            d  = 10 * d + 0.01  
+            depth.append(1 / d)
 
         # divide by mean to normalise
         '''

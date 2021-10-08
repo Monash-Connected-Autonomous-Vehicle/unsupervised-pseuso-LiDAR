@@ -1,5 +1,5 @@
 model:
-    name: 'test'
+    name: 'test_2'
     depth:
         name: 'DispResNet'
         file: 'resnet_dispnet'

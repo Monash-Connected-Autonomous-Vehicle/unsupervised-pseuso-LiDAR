@@ -113,49 +113,64 @@ class Losses:
             img = 0.44 + (0.2 * img)
             plt.imsave('./images/warping/0.png', img)
 
-        depth = depth.squeeze()
-        #depth = depth * self.create_mul_mask(depth)
-
         # split poses
         poses_t_0 = poses[:, 0, :]
         poses_t_2 = poses[:, 1, :]
         poses     = [poses_t_0, poses_t_2] 
+
+        '''
+        depth = depth[0]
+        depth = depth.squeeze()
+        '''
+        reprojection_losses = []
+        automasking_loss    = []
+        for D in depth:
+            _, _, H, W = depth[0].shape
+
+            # Resize all D to 
+            # disp[0].shape
+            if D.shape[-1] != W:
+                D = F.interpolate(D, [H, W], mode='bilinear', align_corners=False)
+                D = D.squeeze()
+
+            # inverse warp from 
+            projected_imgs = [inverse_warp(ref_img, D, pose, intrinsics) for ref_img, pose in zip(ref_imgs, poses)]
+            #save_img(projected_imgs[0][0])
+
+            # reprojection between projected and target
+            reprojection_losses.append([self.compute_photometric_loss(proj_img, tgt_img, no_ssim=True) for proj_img in projected_imgs])
+
+            # reprojection between reference and target
+            automasking_loss.append([self.compute_photometric_loss(ref_img, tgt_img) for ref_img in ref_imgs])
         
-        # inverse warp from 
-        projected_imgs = [inverse_warp(ref_img, depth, pose, intrinsics) for ref_img, pose in zip(ref_imgs, poses)]
-        #save_img(projected_imgs[0][0])
+        loss = []
+        for rp_loss, auto_loss in zip(reprojection_losses, automasking_loss):
+            if mode == 'min':
+                # element-wise minimum
+                min_rpl           = torch.minimum(rp_loss[0], rp_loss[1])
+                min_automask_loss = torch.minimum(auto_loss[0], auto_loss[1])
+                # mean_rpl          = torch.mean(torch.stack(rp_loss))
+                
+                # binary automask
+                # mu = torch.where(min_rpl < min_automask_loss, torch.tensor([1.]).cuda(), torch.tensor([0.]).cuda())
 
-        # reprojection between projected and target
-        reprojection_losses = [self.compute_photometric_loss(proj_img, tgt_img, no_ssim=True) for proj_img in projected_imgs]
-
-        # reprojection between reference and target
-        automasking_loss = [self.compute_photometric_loss(ref_img, tgt_img) for ref_img in ref_imgs]
-
-        if mode == 'min':
-            # element-wise minimum
-            min_rpl           = torch.minimum(reprojection_losses[0], reprojection_losses[1])
-            min_automask_loss = torch.minimum(automasking_loss[0], automasking_loss[1])
-            mean_rpl          = torch.mean(torch.stack(reprojection_losses))
-            
-            # binary automask
-            mu = torch.where(min_rpl < min_automask_loss, torch.tensor([1.]).cuda(), torch.tensor([0.]).cuda())
-
-            # visualise mask
-            # plot_mask(mu, min_rpl)
-      
-            batch_multiview_loss = reduce_loss(min_rpl) # mu * min_rpl for mask
-    
-            return batch_multiview_loss.mean()
-        elif mode == 'mse':
-            mse_loss  = self.L2(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
-            mse_loss += self.L2(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
-            return mse_loss / 2.0
-        elif mode == 'l1':
-            l1_loss  = self.L1(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
-            l1_loss += self.L1(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
-            return l1_loss / 2.0
-        else:
-            assert("different losses not implmented")
+                # visualise mask
+                # plot_mask(mu, min_rpl)
+        
+                batch_multiview_loss = reduce_loss(min_rpl) # mu * min_rpl for mask
+        
+                loss.append(batch_multiview_loss.mean())
+            elif mode == 'mse':
+                mse_loss  = self.L2(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                mse_loss += self.L2(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                loss.append(mse_loss / 2.0)
+            elif mode == 'l1':
+                l1_loss  = self.L1(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                l1_loss += self.L1(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                loss.append(l1_loss / 2.0)
+            else:
+                assert("different losses not implmented")
+        return sum(loss) / len(depth)
 
     def smooth_loss(self, pred_map):
         def gradient(pred):
@@ -193,13 +208,13 @@ class Losses:
     def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics, gt):
         
         # create depth from disparity
-        depth = disp_to_depth(disparity[0])
+        depth = disp_to_depth(disparity)
 
         loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='min')
 
         loss_smooth = self.smooth_loss(depth)
-
-        return [loss_mam, loss_smooth]
+        
+        return [loss_mam, 1.5 * loss_smooth]
 
     
 
