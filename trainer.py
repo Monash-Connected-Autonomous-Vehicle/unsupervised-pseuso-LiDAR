@@ -261,8 +261,8 @@ class Trainer:
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
-            if (batch_indx + 1):
-                self.log_warps(batch_indx)
+            #if (batch_indx + 1):
+            #   self.log_warps(batch_indx)
             
 
             if self.MLOps:

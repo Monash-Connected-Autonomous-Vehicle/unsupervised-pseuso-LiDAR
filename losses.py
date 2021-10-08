@@ -138,7 +138,7 @@ class Losses:
             #save_img(projected_imgs[0][0])
 
             # reprojection between projected and target
-            reprojection_losses.append([self.compute_photometric_loss(proj_img, tgt_img, no_ssim=True) for proj_img in projected_imgs])
+            reprojection_losses.append([self.compute_photometric_loss(proj_img, tgt_img, no_ssim=False) for proj_img in projected_imgs])
 
             # reprojection between reference and target
             automasking_loss.append([self.compute_photometric_loss(ref_img, tgt_img) for ref_img in ref_imgs])
@@ -213,8 +213,8 @@ class Losses:
         loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='min')
 
         loss_smooth = self.smooth_loss(depth)
-        
-        return [loss_mam, 1.5 * loss_smooth]
+
+        return [loss_mam, loss_smooth]
 
     
 
