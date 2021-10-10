@@ -75,18 +75,20 @@ def disp_to_depth(disp):
 
         depth = []
         for d in disp:
+            B, C, H, W = d.shape
             d  = 10 * d + 0.01  
-            depth.append(1 / d)
+            D = 1 / d
 
-        # divide by mean to normalise
-        '''
-        depth = depth.view(C, -1)
-        per_sample_mean = depth.mean(1)
-        per_sample_mean = per_sample_mean.unsqueeze(1)
-        
-        depth = depth.div(per_sample_mean)
-        depth = depth.reshape(C, B, H, W)
-        '''
+            '''
+
+            D = D.view(B, -1)
+            mean_D = D.mean(1).unsqueeze(1)
+
+            # divide by mean to normalise
+            D = D / mean_D
+            D = D.reshape(B, C, H, W)
+            '''
+            depth.append(D)
 
         return depth
 

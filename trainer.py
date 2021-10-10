@@ -217,13 +217,13 @@ class Trainer:
         depth   = disp_to_depth([outputs[0][0]])[0].squeeze()
 
         poses   = outputs[1]
-        poses   = poses[:, 1, :]
+        poses   = poses[:, 0, :]
 
         ref_imgs   = [ref_img.to(self.device) for ref_img in self.warp_sample['ref_imgs']]
         intrinsics = self.warp_sample['intrinsics'].to(self.device)
 
         # create warp
-        projected_img = inverse_warp(ref_imgs[1], depth, poses, intrinsics)[1]
+        projected_img = inverse_warp(ref_imgs[0], depth, poses, intrinsics)[1]
         projected_img = np.transpose((projected_img.squeeze()).cpu().detach().numpy(), (1, 2, 0))
         projected_img =  0.449 + (projected_img * 0.2) # remove normalization
 
@@ -261,8 +261,8 @@ class Trainer:
             sum(self.loss).backward()
             self.model_optimizer.step() 
 
-            #if (batch_indx + 1):
-            #   self.log_warps(batch_indx)
+            if (batch_indx + 1):
+               self.log_warps(batch_indx)
             
 
             if self.MLOps:

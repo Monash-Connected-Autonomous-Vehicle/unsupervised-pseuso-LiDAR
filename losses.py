@@ -57,8 +57,8 @@ class Losses:
 
     def __init__(self):
         self.SSIM = SSIM()
-        self.L2   = nn.MSELoss()
-        self.L1   = nn.L1Loss()
+        #self.L2   = nn.MSELoss()
+        #self.L1   = nn.L1Loss()
 
         self.unnormalize  =  UnNormalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         self.clip_loss = 0.5
@@ -109,7 +109,7 @@ class Losses:
         def save_img(proj_img):
             img = proj_img.clone()
             img = img.cpu().detach().numpy()
-            img = np.transpose(img, (1, 2, 0))
+            #img = np.transpose(img, (1, 2, 0))
             img = 0.44 + (0.2 * img)
             plt.imsave('./images/warping/0.png', img)
 
@@ -117,13 +117,15 @@ class Losses:
         poses_t_0 = poses[:, 0, :]
         poses_t_2 = poses[:, 1, :]
         poses     = [poses_t_0, poses_t_2] 
-
+        
+        print(poses)
         '''
         depth = depth[0]
         depth = depth.squeeze()
         '''
         reprojection_losses = []
         automasking_loss    = []
+        projected_lst      = []
         for D in depth:
             _, _, H, W = depth[0].shape
 
@@ -132,23 +134,26 @@ class Losses:
             if D.shape[-1] != W:
                 D = F.interpolate(D, [H, W], mode='bilinear', align_corners=False)
                 D = D.squeeze()
+                # save_img(D[0])
+
 
             # inverse warp from 
             projected_imgs = [inverse_warp(ref_img, D, pose, intrinsics) for ref_img, pose in zip(ref_imgs, poses)]
+            projected_lst.append(projected_imgs)
             #save_img(projected_imgs[0][0])
 
             # reprojection between projected and target
             reprojection_losses.append([self.compute_photometric_loss(proj_img, tgt_img, no_ssim=False) for proj_img in projected_imgs])
 
             # reprojection between reference and target
-            automasking_loss.append([self.compute_photometric_loss(ref_img, tgt_img) for ref_img in ref_imgs])
+            #automasking_loss.append([self.compute_photometric_loss(ref_img, tgt_img) for ref_img in ref_imgs])
         
         loss = []
-        for rp_loss, auto_loss in zip(reprojection_losses, automasking_loss):
+        for rp_loss, proj_imgs in zip(reprojection_losses, projected_lst) :
             if mode == 'min':
                 # element-wise minimum
                 min_rpl           = torch.minimum(rp_loss[0], rp_loss[1])
-                min_automask_loss = torch.minimum(auto_loss[0], auto_loss[1])
+                #min_automask_loss = torch.minimum(auto_loss[0], auto_loss[1])
                 # mean_rpl          = torch.mean(torch.stack(rp_loss))
                 
                 # binary automask
@@ -161,12 +166,12 @@ class Losses:
         
                 loss.append(batch_multiview_loss.mean())
             elif mode == 'mse':
-                mse_loss  = self.L2(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
-                mse_loss += self.L2(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                mse_loss  = self.L2(proj_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                mse_loss += self.L2(proj_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
                 loss.append(mse_loss / 2.0)
             elif mode == 'l1':
-                l1_loss  = self.L1(projected_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
-                l1_loss += self.L1(projected_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                l1_loss  = self.L1(proj_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                l1_loss += self.L1(proj_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
                 loss.append(l1_loss / 2.0)
             else:
                 assert("different losses not implmented")
