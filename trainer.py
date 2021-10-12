@@ -91,10 +91,13 @@ class Trainer:
         # normalisation transforms
         self.unnormalize  =  UnNormalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
+        img_width       = config['datasets']['augmentation']['image_width']
+        img_height      = config['datasets']['augmentation']['image_height']
+
         transform = [
             transforms.ToTensor(),
             transforms.ToPILImage(),
-            transforms.Resize((384, 1280)), # packnet standard
+            transforms.Resize((img_height, img_width)),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
             ]
@@ -289,6 +292,7 @@ class Trainer:
         intrinsics = samples['intrinsics'].to(self.device)
         gt         = samples['groundtruth'].to(self.device)
 
+        
         disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
 
         if semi_sup_pose:
