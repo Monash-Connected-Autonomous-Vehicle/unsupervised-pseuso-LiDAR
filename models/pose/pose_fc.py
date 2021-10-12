@@ -77,7 +77,7 @@ class PoseFc(nn.Module):
         
         # replacing mean with learnable 
         # parameters
-        pose = pose.view(-1, 12 * 3 * 10)
+        pose = pose.view(-1, 12 * 3 * 10) #12 * 3 * 10
         pose = self.fc_loc(pose)
         pose = pose.view(pose.size(0), self.nb_ref_imgs, 6)
         pose[:, :, :3] = 0

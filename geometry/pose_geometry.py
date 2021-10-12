@@ -67,23 +67,30 @@ def euler2mat(angle):
     rot_mat = xmat.bmm(ymat).bmm(zmat)
     return rot_mat
 
-def disp_to_depth(disp):
+def disp_to_depth(disps):
         """Convert network's sigmoid output into depth prediction
         The formula for this conversion is given in the 'additional considerations'
         section of the paper.
         """
 
-        depth = 1 / disp
+        depth = []
+        for disp_time in disps:
+            depth_time = []
+            for disparities in disp_time:
+                # B, C, H, W = disparities.shape
+                disparities  = 10 * disparities + 0.01  
+                D = 1 / disparities
 
-        # divide by mean to normalise
-        '''
-        depth = depth.view(C, -1)
-        per_sample_mean = depth.mean(1)
-        per_sample_mean = per_sample_mean.unsqueeze(1)
-        
-        depth = depth.div(per_sample_mean)
-        depth = depth.reshape(C, B, H, W)
-        '''
+                '''
+                D = D.view(B, -1)
+                mean_D = D.mean(1).unsqueeze(1)
+
+                # divide by mean to normalise
+                D = D / mean_D
+                D = D.reshape(B, C, H, W)
+                '''
+                depth_time.append(D)
+            depth.append(depth_time)
 
         return depth
 
@@ -191,7 +198,7 @@ def rot_from_axisangle(vec):
 
     return rot
 
-def inverse_warp(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros'):
+def inverse_warp(img, depth, pose, K, pose_inv, rotation_mode='euler', padding_mode='zeros'):
     """
     Inverse warp a source image to the target image plane.
     Args:
@@ -211,6 +218,9 @@ def inverse_warp(img, depth, pose, K, rotation_mode='euler', padding_mode='zeros
     # test
     trans, rot = pose[:, 3:].unsqueeze(1), pose[:, :3].unsqueeze(1)
     Tcw = transformation_from_parameters(rot, trans)
+
+    if pose_inv:
+        Tcw = invert_pose(Tcw)
 
     src_pixel_coords = warper.project(cam_coords, K, Tcw)  # [B,H,W,2]
 
