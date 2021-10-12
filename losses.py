@@ -198,9 +198,9 @@ class Losses:
                 pose_inv = False
             elif indx > 0:
                 ref_imgs = [tgt]
-                tgt_img  = ref_imgs[indx]
+                tgt_img  = refs[indx]
                 pose_inv = True
-                poses     = poses[indx - 1]
+                poses     = [poses[indx - 1]]
             else:
                 assert('More than three timesteps not implemented yet')
 

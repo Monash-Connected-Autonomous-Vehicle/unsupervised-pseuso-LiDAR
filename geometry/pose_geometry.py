@@ -214,7 +214,7 @@ def inverse_warp(img, depth, pose, K, pose_inv, rotation_mode='euler', padding_m
     warper = Transform()
 
     cam_coords = warper.reconstruct(torch.squeeze(depth), K)  # [B,3,H,W]
-
+    
     # test
     trans, rot = pose[:, 3:].unsqueeze(1), pose[:, :3].unsqueeze(1)
     Tcw = transformation_from_parameters(rot, trans)

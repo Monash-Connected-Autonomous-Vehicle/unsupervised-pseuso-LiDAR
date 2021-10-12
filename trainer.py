@@ -293,7 +293,7 @@ class Trainer:
         intrinsics = samples['intrinsics'].to(self.device)
         gt         = samples['groundtruth'].to(self.device)
 
-        image_ts = [tgt, ref_imgs[0], ref_imgs[1]]
+        image_ts = [tgt, ref_imgs[0]]
         disps    = []
         for image_t in image_ts:
             disps.append(self.depth_model(image_t)) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
