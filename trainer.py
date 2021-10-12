@@ -262,10 +262,11 @@ class Trainer:
             
             outputs, self.loss = self.process_batch(samples, semi_sup_pose=False)
             sum(self.loss).backward()
+            print(sum(self.loss))
             self.model_optimizer.step() 
 
-            if (batch_indx + 1):
-               self.log_warps(batch_indx)
+            #if (batch_indx + 1):
+            #   self.log_warps(batch_indx)
             
 
             if self.MLOps:
@@ -292,8 +293,10 @@ class Trainer:
         intrinsics = samples['intrinsics'].to(self.device)
         gt         = samples['groundtruth'].to(self.device)
 
-        
-        disp = self.depth_model(tgt) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
+        image_ts = [tgt, ref_imgs[0], ref_imgs[1]]
+        disps    = []
+        for image_t in image_ts:
+            disps.append(self.depth_model(image_t)) # [T(B, 1, H, W), T(B, 1, H_re, W_re), ....rescaled)
 
         if semi_sup_pose:
             poses_t_0 = samples["oxts"][0].unsqueeze(1)
@@ -303,11 +306,11 @@ class Trainer:
             poses = self.pose_model(tgt, ref_imgs) # T(B, 2, 6)
 
         if warp_test:
-            return [disp, poses]
+            return [disps, poses]
         else:
             # forward + backward 
-            loss = self.criterion.forward(tgt, ref_imgs, disp, poses, intrinsics, gt)
-            return [disp, poses], loss
+            loss = self.criterion.forward(tgt, ref_imgs, disps, poses, intrinsics, gt)
+            return [disps, poses], loss
     
     @torch.no_grad()
     def validate(self):

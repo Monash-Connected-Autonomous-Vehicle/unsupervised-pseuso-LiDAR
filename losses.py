@@ -56,8 +56,9 @@ class SSIM:
 class Losses:
 
     def __init__(self):
-        self.SSIM = SSIM()
+        #self.SSIM = SSIM()
         #self.L2   = nn.MSELoss()
+        self.L1   = nn.L1Loss()
 
         self.unnormalize  =  UnNormalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         self.clip_loss = 0.5
@@ -179,6 +180,65 @@ class Losses:
                 assert("different losses not implmented")
         return sum(loss) / len(depth)
 
+    def reprojection_loss(self, tgt, refs, depths, poses, intrinsics, mode='min'):
+        # split poses
+        poses_t_0 = poses[:, 0, :]
+        poses_t_2 = poses[:, 1, :]
+        poses     = [poses_t_0, poses_t_2]
+
+        loss = []
+        for indx in range(len(depths)):
+            print(indx)
+            depth = depths[indx]
+
+            pose_inv = None
+            if indx == 0:
+                ref_imgs = refs
+                tgt_img  = tgt
+                pose_inv = False
+            elif indx > 0:
+                ref_imgs = [tgt]
+                tgt_img  = ref_imgs[indx]
+                pose_inv = True
+                poses     = poses[indx - 1]
+            else:
+                assert('More than three timesteps not implemented yet')
+
+            reprojection_losses = []
+            projected_lst      = []
+            for D in depth:
+                _, _, H, W = depth[0].shape
+
+                # Resize all D to 
+                # disp[0].shape
+                if D.shape[-1] != W:
+                    D = F.interpolate(D, [H, W], mode='bilinear', align_corners=False)
+                D = D.squeeze()
+
+                # inverse warp from 
+                projected_imgs = [inverse_warp(ref_img, D, pose, intrinsics, pose_inv) for ref_img, pose in zip(ref_imgs, poses)]
+                projected_lst.append(projected_imgs)
+
+                # reprojection between projected and target
+                reprojection_losses.append([self.L1(proj_img, tgt_img) for proj_img in projected_imgs])
+
+            for rp_loss, proj_imgs in zip(reprojection_losses, projected_lst) :
+                if mode == 'min':
+                    mean_rpl          = torch.mean(torch.stack(rp_loss))
+                    loss.append(mean_rpl)
+                elif mode == 'mse':
+                    mse_loss  = self.L2(proj_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                    mse_loss += self.L2(proj_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                    loss.append(mse_loss / 2.0)
+                elif mode == 'l1':
+                    l1_loss  = self.L1(proj_imgs[0].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                    l1_loss += self.L1(proj_imgs[1].type(torch.cuda.DoubleTensor), tgt_img.type(torch.cuda.DoubleTensor))
+                    loss.append(l1_loss / 2.0)
+                else:
+                    assert("different losses not implmented")
+
+        return sum(loss) / len(loss)
+
     def smooth_loss(self, pred_map):
         def gradient(pred):
             D_dy = pred[:, :, 1:] - pred[:, :, :-1]
@@ -199,27 +259,14 @@ class Losses:
             weight /= 2.3  # don't ask me why it works better
         return loss
 
-    def create_mul_mask(self, tensor):
-    
-        mul_mask = torch.ones_like(tensor)
-        
-        C, H, W     = mul_mask.shape
-        c_h, c_w = H//2, W//2
-        
-        mul_mask[:, c_h-150:c_h+150, c_w-500:c_w+500] = 2
-        mul_mask[:, c_h-100:c_h+100, c_w-300:c_w+300] = 5
-        mul_mask[:, c_h-50:c_h+50, c_w-100:c_w+100]   = 10
-        
-        return mul_mask
-
     def forward(self, tgt_img, ref_imgs, disparity, poses, intrinsics, gt):
         
         # create depth from disparity
-        depth = disp_to_depth(disparity)
+        depths = disp_to_depth(disparity)
 
-        loss_mam    = self.multiview_reprojection_loss(tgt_img, ref_imgs, depth, poses, intrinsics, mode='min')
+        loss_mam    = self.reprojection_loss(tgt_img, ref_imgs, depths, poses, intrinsics, mode='min')
 
-        loss_smooth = self.smooth_loss(depth)
+        loss_smooth = self.smooth_loss(depths[0])
 
         return [loss_mam, loss_smooth]
 
